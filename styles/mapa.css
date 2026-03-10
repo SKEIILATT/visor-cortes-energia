@@ -327,7 +327,17 @@ select:focus {
   left: 14px;
   right: 14px;
   bottom: 14px;
-  padding: 12px;
+  padding: 14px 16px;
+  transition: padding 0.2s ease;
+}
+
+.timeline.collapsed {
+  padding: 10px 16px;
+}
+
+.timeline.collapsed .timeline-row.controls,
+.timeline.collapsed .track-wrap {
+  display: none;
 }
 
 .timeline-row {
@@ -337,10 +347,17 @@ select:focus {
   gap: 10px;
 }
 
+.timeline-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .timeline-row.controls {
-  margin-top: 10px;
+  margin-top: 12px;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .timeline-title {
@@ -353,26 +370,26 @@ select:focus {
 }
 
 .timeline-badge {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   font-size: 12px;
 }
 
 .time-box {
   min-width: 74px;
   text-align: center;
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--primary);
 }
 
 #timeline-slider {
   flex: 1;
-  min-width: 220px;
+  min-width: 200px;
 }
 
 .track-wrap {
   margin-top: 10px;
-  height: 20px;
+  height: 18px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--panel-soft);

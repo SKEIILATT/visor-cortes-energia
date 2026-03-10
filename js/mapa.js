@@ -75,10 +75,12 @@
     btnIncClear: document.getElementById('btn-inc-clear'),
     incMeta: document.getElementById('inc-meta'),
 
+    timeline: document.getElementById('timeline'),
     timelineTime: document.getElementById('timeline-time'),
     timelineBadge: document.getElementById('timeline-badge'),
     timelineSlider: document.getElementById('timeline-slider'),
     timelineTrack: document.getElementById('timeline-track'),
+    btnTlToggle: document.getElementById('btn-tl-toggle'),
     btnPlay: document.getElementById('btn-play'),
     btnSpd1: document.getElementById('btn-spd-1'),
     btnSpd4: document.getElementById('btn-spd-4'),
@@ -215,6 +217,11 @@
     els.btnSpd4.addEventListener('click', function () { setPlaybackSpeed(4); });
     els.btnSpd8.addEventListener('click', function () { setPlaybackSpeed(8); });
     els.btnTimeClear.addEventListener('click', function () { setMinute(-1); });
+    els.btnTlToggle.addEventListener('click', function () {
+      const collapsed = els.timeline.classList.toggle('collapsed');
+      els.btnTlToggle.textContent = collapsed ? '+' : '−';
+      els.btnTlToggle.title = collapsed ? 'Expandir timeline' : 'Colapsar timeline';
+    });
 
     els.btnInfoClose.addEventListener('click', closeInfoPanel);
   }
