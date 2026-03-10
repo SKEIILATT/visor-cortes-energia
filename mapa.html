@@ -1,0 +1,146 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visor GeoJSON - Mapa</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="styles/mapa.css">
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="title-box">
+        <h1 id="hdr-title">Cargando dataset...</h1>
+        <p id="hdr-sub">Preparando visualización</p>
+      </div>
+
+      <div class="top-stats" aria-live="polite">
+        <div class="stat">
+          <span class="stat-v" id="s-features">-</span>
+          <span class="stat-k">features</span>
+        </div>
+        <div class="stat">
+          <span class="stat-v" id="s-groups">-</span>
+          <span class="stat-k">grupos</span>
+        </div>
+        <div class="stat">
+          <span class="stat-v" id="s-affected">-</span>
+          <span class="stat-k">afectadas</span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button id="btn-theme" class="btn-ghost" type="button">Modo oscuro</button>
+        <button id="btn-export-fused" class="btn-ghost" type="button" hidden>Exportar fusionado</button>
+        <button id="btn-fit" class="btn-ghost" type="button">Encuadrar</button>
+        <button id="btn-print" class="btn-ghost" type="button">Imprimir</button>
+        <button id="btn-back" class="btn-ghost" type="button">Nuevo archivo</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar" id="sidebar">
+        <section class="panel">
+          <h2 class="panel-title">Capas</h2>
+          <input id="group-search" type="search" placeholder="Buscar grupo" autocomplete="off">
+          <div class="btn-row">
+            <button id="btn-all" class="btn-mini" type="button">Todos</button>
+            <button id="btn-none" class="btn-mini" type="button">Ninguno</button>
+            <button id="btn-invert" class="btn-mini" type="button">Invertir</button>
+            <button id="btn-affected-only" class="btn-mini" type="button">Solo afectadas</button>
+          </div>
+          <div class="btn-row">
+            <button id="btn-mode-group" class="btn-mini btn-mini-primary" type="button">Por grupo</button>
+            <button id="btn-mode-outage" class="btn-mini" type="button">Por cortes</button>
+            <button id="btn-geom-toggle" class="btn-mini" type="button">Vista fusionada v4: OFF</button>
+          </div>
+        </section>
+
+        <section class="panel panel-inc">
+          <div class="panel-row">
+            <h2 class="panel-title">Incidencias</h2>
+          </div>
+          <div class="btn-row">
+            <button id="btn-inc-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV/Excel</button>
+            <button id="btn-inc-toggle" class="btn-mini" type="button" disabled>Ocultar</button>
+            <button id="btn-inc-cluster" class="btn-mini" type="button" disabled>Cluster ON</button>
+            <button id="btn-inc-clear" class="btn-mini" type="button" disabled>Quitar</button>
+          </div>
+          <p id="inc-meta" class="muted">Sin incidencias cargadas</p>
+          <input id="inc-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
+        </section>
+
+        <section class="panel grow">
+          <div class="panel-row">
+            <h2 id="groups-title" class="panel-title">Grupos</h2>
+            <span id="groups-visible" class="muted">0/0</span>
+          </div>
+          <div id="groups-list" class="groups-list"></div>
+        </section>
+      </aside>
+
+      <main class="map-stage">
+        <div id="map"></div>
+
+        <button id="btn-sidebar" class="floating-btn sidebar-btn" type="button">Panel</button>
+
+        <section id="timeline" class="timeline">
+          <div class="timeline-row">
+            <div>
+              <p class="timeline-title">Timeline de cortes</p>
+              <p id="timeline-badge" class="timeline-badge">sin filtro horario</p>
+            </div>
+            <div class="time-box" id="timeline-time">--:--</div>
+          </div>
+
+          <div class="timeline-row controls">
+            <button id="btn-play" class="btn-mini" type="button">Play</button>
+            <input id="timeline-slider" type="range" min="0" max="1440" step="15" value="0">
+            <button id="btn-spd-1" class="btn-mini btn-mini-primary" type="button">1x</button>
+            <button id="btn-spd-4" class="btn-mini" type="button">4x</button>
+            <button id="btn-spd-8" class="btn-mini" type="button">8x</button>
+            <button id="btn-time-clear" class="btn-mini" type="button">Quitar filtro</button>
+          </div>
+
+          <div class="track-wrap">
+            <svg id="timeline-track" viewBox="0 0 100 10" preserveAspectRatio="none"></svg>
+          </div>
+        </section>
+
+        <section id="ranking" class="ranking">
+          <div class="panel-row">
+            <h2 id="rank-title" class="panel-title">Top zonas por cortes</h2>
+            <span class="muted" id="rank-sub">por horas</span>
+          </div>
+          <div id="rank-list"></div>
+        </section>
+
+        <section id="info" class="info" hidden>
+          <div class="panel-row">
+            <h2 id="info-title" class="panel-title">Detalle</h2>
+            <button id="btn-info-close" class="btn-mini" type="button">Cerrar</button>
+          </div>
+          <div id="info-content"></div>
+        </section>
+
+        <div id="status-pill" class="status-pill">Inicializando mapa...</div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/data-store.js"></script>
+  <script src="js/mapa.js"></script>
+</body>
+</html>

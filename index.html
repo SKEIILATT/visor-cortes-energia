@@ -1,0 +1,51 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visor GeoJSON - Carga</title>
+  <link rel="stylesheet" href="styles/index.css">
+</head>
+<body>
+  <main class="landing">
+    <section class="card" aria-labelledby="landing-title">
+      <p class="eyebrow">Visualización geoespacial</p>
+      <h1 id="landing-title">Visor GeoJSON</h1>
+      <p class="subtitle">
+        Carga un archivo GeoJSON y genera un mapa interactivo con filtros, timeline y panel de análisis.
+      </p>
+
+      <label id="drop-zone" class="drop-zone" for="file-input" aria-label="Zona para subir archivo GeoJSON">
+        <input id="file-input" type="file" accept=".geojson,.json" aria-label="Seleccionar archivo GeoJSON">
+        <div class="dz-icon" aria-hidden="true">Archivo</div>
+        <div class="dz-title">Arrastra tu archivo aquí</div>
+        <div class="dz-hint">o haz clic para seleccionarlo</div>
+      </label>
+
+      <section id="file-info" class="file-info" aria-live="polite" hidden>
+        <div class="fi-main">
+          <p id="fi-name" class="fi-name">-</p>
+          <p id="fi-meta" class="fi-meta">-</p>
+        </div>
+        <span id="fi-status" class="fi-status">-</span>
+      </section>
+
+      <p id="size-warn" class="size-warn" hidden>
+        Archivo grande detectado. Se procesará en segundo plano para evitar bloqueos.
+      </p>
+
+      <p id="error-msg" class="error-msg" role="alert" hidden></p>
+
+      <button id="btn-open" class="btn-primary" type="button" disabled>Abrir mapa</button>
+
+      <footer class="foot-note">
+        <p>Los datos se procesan localmente en tu navegador.</p>
+        <p>No se sube información a servidores.</p>
+      </footer>
+    </section>
+  </main>
+
+  <script src="js/data-store.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>
