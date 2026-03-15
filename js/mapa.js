@@ -36,6 +36,12 @@
       built: false,
       groupLayers: new Map(),
     },
+    resolved: {
+      done: false,
+      features: [],
+      previewLayer: null,
+    },
+    compareMode: 'both',   // 'before' | 'both' | 'after'
   };
 
   const els = {
@@ -47,6 +53,12 @@
 
     btnTheme: document.getElementById('btn-theme'),
     btnExportFused: document.getElementById('btn-export-fused'),
+    btnResolveOverlaps: document.getElementById('btn-resolve-overlaps'),
+    btnExportResolved: document.getElementById('btn-export-resolved'),
+    comparePanel: document.getElementById('compare-panel'),
+    btnCmpBefore: document.getElementById('btn-cmp-before'),
+    btnCmpBoth: document.getElementById('btn-cmp-both'),
+    btnCmpAfter: document.getElementById('btn-cmp-after'),
     btnFit: document.getElementById('btn-fit'),
     btnPrint: document.getElementById('btn-print'),
     btnBack: document.getElementById('btn-back'),
@@ -169,12 +181,18 @@
       els.timelineBadge.textContent = 'dataset sin cortes_horas';
     }
 
+    els.btnResolveOverlaps.hidden = false;
     setStatus('Listo', 'ok');
   }
 
   function bindUI() {
     els.btnTheme.addEventListener('click', toggleTheme);
     document.getElementById('btn-export-fused').addEventListener('click', exportFusedGeoJSON);
+    els.btnResolveOverlaps.addEventListener('click', runOverlapResolver);
+    els.btnExportResolved.addEventListener('click', exportResolvedGeoJSON);
+    els.btnCmpBefore.addEventListener('click', function () { setCompareMode('before'); });
+    els.btnCmpBoth.addEventListener('click', function () { setCompareMode('both'); });
+    els.btnCmpAfter.addEventListener('click', function () { setCompareMode('after'); });
     els.btnFit.addEventListener('click', function () {
       if (state.mapBounds && state.mapBounds.isValid()) state.map.fitBounds(state.mapBounds.pad(0.06));
     });
@@ -1340,6 +1358,258 @@
     downloadText(fileBaseName() + '_fusionado.geojson', text, 'application/geo+json;charset=utf-8');
     setStatus('GeoJSON fusionado exportado (' + features.length + ' features).', 'ok');
   }
+
+  // ─── Resolución de solapamientos entre polígonos ──────────────────────────
+
+  // Punto de entrada: el usuario hace clic en "Resolver solapamientos".
+  // Recoge todos los polígonos del dataset, lanza el proceso asíncrono y,
+  // al terminar, muestra una capa de previsualización sobre el mapa.
+  function runOverlapResolver() {
+    if (typeof turf === 'undefined') {
+      setStatus('Turf.js es necesario para esta función.', 'err');
+      return;
+    }
+
+    const polygons = state.features
+      .filter(function (f) {
+        const geomType = (f.feature.geometry && f.feature.geometry.type) || '';
+        return /Polygon/i.test(geomType);
+      })
+      .map(function (f) { return f.feature; });
+
+    if (!polygons.length) {
+      setStatus('El dataset no contiene polígonos.', 'err');
+      return;
+    }
+
+    // Limpiar resultado de una ejecución previa
+    if (state.resolved.previewLayer) {
+      state.map.removeLayer(state.resolved.previewLayer);
+      state.resolved.previewLayer = null;
+    }
+    state.resolved.done = false;
+    state.resolved.features = [];
+    els.btnExportResolved.hidden = true;
+    els.btnResolveOverlaps.disabled = true;
+
+    setStatus('Analizando ' + polygons.length + ' polígonos...', 'warn');
+
+    resolveOverlapsAsync(
+      polygons,
+      function onProgress(current, total) {
+        setStatus('Procesando ' + current + ' / ' + total + '...', 'warn');
+      },
+      function onDone(result) {
+        state.resolved.features = result;
+        state.resolved.done = true;
+
+        state.resolved.previewLayer = buildResolvedPreviewLayer(result);
+
+        els.btnExportResolved.hidden = false;
+        els.btnResolveOverlaps.disabled = false;
+
+        // Abrir el panel de comparación en modo "ambos" para ver el antes y después
+        els.comparePanel.hidden = false;
+        setCompareMode('both');
+
+        const removed = polygons.length - result.length;
+        const msg = 'Listo: ' + result.length + ' polígonos resultantes' +
+          (removed > 0 ? ' (' + removed + ' absorbidos completamente)' : '') + '.';
+        setStatus(msg, 'ok');
+      }
+    );
+  }
+
+  // Procesa los polígonos de forma asíncrona (un polígono por tick de event loop)
+  // para no bloquear la interfaz durante datasets grandes.
+  //
+  // Estrategia de prioridad — orden ASCENDENTE por área:
+  //   Las zonas más pequeñas se procesan primero y conservan su forma exacta.
+  //   Las zonas más grandes se procesan después y pierden el área que ya fue
+  //   reclamada por las pequeñas (turf.difference). Esto resuelve correctamente
+  //   el caso de subestaciones anidadas: la interior mantiene su geometría y la
+  //   exterior queda con el hueco correspondiente, sin perder ninguna subestación.
+  function resolveOverlapsAsync(features, onProgress, onDone) {
+    const sorted = features.slice().sort(function (a, b) {
+      let areaA = 0;
+      let areaB = 0;
+      try { areaA = turf.area(a); } catch (_) {}
+      try { areaB = turf.area(b); } catch (_) {}
+      return areaA - areaB;   // ascendente: la más pequeña va primero
+    });
+
+    const result = [];
+    const resultBBoxes = [];
+    let idx = 0;
+
+    function processNext() {
+      if (idx >= sorted.length) {
+        onDone(result);
+        return;
+      }
+
+      let current = sorted[idx];
+
+      if (current && current.geometry) {
+        let currentBbox = null;
+        try { currentBbox = turf.bbox(current); } catch (_) {}
+
+        for (let j = 0; j < result.length; j++) {
+          // Descarte rápido: si los bounding boxes no se superponen,
+          // no puede haber intersección real entre estos dos polígonos.
+          if (currentBbox && resultBBoxes[j] && !bboxesOverlap(currentBbox, resultBBoxes[j])) {
+            continue;
+          }
+
+          let diff = null;
+          try {
+            diff = turf.difference(current, result[j]);
+          } catch (_) {
+            // Si turf falla (e.g. geometría degenerada), conservar el actual
+            diff = current;
+          }
+
+          if (!diff) {
+            // El polígono quedó completamente cubierto por uno anterior
+            current = null;
+            break;
+          }
+
+          current = diff;
+          try { currentBbox = turf.bbox(current); } catch (_) {}
+        }
+      }
+
+      if (current) {
+        result.push(current);
+        try {
+          resultBBoxes.push(turf.bbox(current));
+        } catch (_) {
+          resultBBoxes.push([-180, -90, 180, 90]);
+        }
+      }
+
+      idx++;
+      onProgress(idx, sorted.length);
+      setTimeout(processNext, 0);
+    }
+
+    setTimeout(processNext, 0);
+  }
+
+  // Devuelve true si dos bounding boxes [minX, minY, maxX, maxY] se solapan.
+  function bboxesOverlap(a, b) {
+    return !(a[2] < b[0] || b[2] < a[0] || a[3] < b[1] || b[3] < a[1]);
+  }
+
+  // Alterna qué capas se muestran en el mapa:
+  //   'before' → solo los polígonos originales (como estaban antes del proceso)
+  //   'both'   → originales atenuados + resueltos con color completo (para comparar)
+  //   'after'  → solo los polígonos ya sin solapamientos, con sus colores de grupo
+  function setCompareMode(mode) {
+    state.compareMode = mode;
+
+    const showOriginal = (mode === 'before' || mode === 'both');
+    const showResolved  = (mode === 'after'  || mode === 'both');
+    const dimOriginal   = (mode === 'both');
+
+    // Capas originales
+    if (!showOriginal) {
+      for (let i = 0; i < state.features.length; i += 1) {
+        const feat = state.features[i];
+        if (state.map.hasLayer(feat.layer)) state.map.removeLayer(feat.layer);
+      }
+      if (state.fused.built) {
+        state.fused.groupLayers.forEach(function (layer) {
+          if (state.map.hasLayer(layer)) state.map.removeLayer(layer);
+        });
+      }
+    } else {
+      // Restaurar visibilidad normal y luego atenuar si hace falta
+      refreshAll();
+      if (dimOriginal) {
+        for (let i = 0; i < state.features.length; i += 1) {
+          const feat = state.features[i];
+          if (state.map.hasLayer(feat.layer)) {
+            // Atenuar los originales para que los resueltos resalten encima
+            feat.layer.setStyle({ fillOpacity: 0.12, opacity: 0.35, weight: 1 });
+          }
+        }
+      }
+    }
+
+    // Capa resuelta (mismos colores de grupo, encima)
+    if (state.resolved.previewLayer) {
+      const onMap = state.map.hasLayer(state.resolved.previewLayer);
+      if (showResolved && !onMap) state.resolved.previewLayer.addTo(state.map);
+      if (!showResolved && onMap) state.map.removeLayer(state.resolved.previewLayer);
+    }
+
+    // Resaltar el botón activo
+    els.btnCmpBefore.classList.toggle('btn-mini-primary', mode === 'before');
+    els.btnCmpBoth.classList.toggle('btn-mini-primary', mode === 'both');
+    els.btnCmpAfter.classList.toggle('btn-mini-primary', mode === 'after');
+  }
+
+  // Construye una capa Leaflet para mostrar los polígonos resueltos.
+  // Cada polígono usa el mismo color de su grupo original, igual que la vista normal,
+  // para que la comparación sea directa (mismos colores, formas distintas).
+  function buildResolvedPreviewLayer(features) {
+    const renderer = L.canvas({ padding: 0.5 });
+    const groupField = state.analysis && state.analysis.groupBy;
+
+    return L.geoJSON(
+      { type: 'FeatureCollection', features: features },
+      {
+        renderer: renderer,
+        style: function (feature) {
+          const props = feature.properties || {};
+          const rawKey = groupField ? props[groupField] : null;
+          const groupKey = (rawKey != null && String(rawKey).trim()) ? String(rawKey).trim() : 'N/A';
+          const group = state.groups.get(groupKey);
+          const color = group ? group.color : '#3b82f6';
+
+          return {
+            color: color,
+            weight: 2.5,
+            opacity: 1,
+            fillColor: color,
+            fillOpacity: 0.52,
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          const props = feature.properties || {};
+          const rawKey = groupField ? props[groupField] : null;
+          const label = rawKey || props.subgrupo || props.layer || props.nombre || 'Polígono';
+          layer.bindTooltip(escapeHtml(String(label)), { sticky: true, direction: 'top', opacity: 0.95 });
+        },
+      }
+    );
+  }
+
+  // Descarga el GeoJSON con los polígonos ya sin solapamientos.
+  function exportResolvedGeoJSON() {
+    if (!state.resolved.done || !state.resolved.features.length) {
+      setStatus('Primero ejecuta "Resolver solapamientos".', 'err');
+      return;
+    }
+
+    const baseName = (state.datasetRecord && state.datasetRecord.name)
+      ? state.datasetRecord.name
+      : 'dataset';
+
+    const payload = {
+      type: 'FeatureCollection',
+      name: baseName + ' (sin solapamientos)',
+      features: state.resolved.features,
+    };
+
+    const text = JSON.stringify(payload, null, 2);
+    downloadText(fileBaseName() + '_sin_solapamientos.geojson', text, 'application/geo+json;charset=utf-8');
+    setStatus('Exportados ' + state.resolved.features.length + ' polígonos sin solapamientos.', 'ok');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   function exportSummaryCsv() {
     const header = ['grupo', 'features_totales', 'features_visibles', 'franjas', 'horas_estimadas', 'activo_en_timeline'];

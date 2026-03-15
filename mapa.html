@@ -44,6 +44,8 @@
       <div class="top-actions">
         <button id="btn-theme" class="btn-ghost" type="button">Modo oscuro</button>
         <button id="btn-export-fused" class="btn-ghost" type="button" hidden>Exportar fusionado</button>
+        <button id="btn-resolve-overlaps" class="btn-ghost" type="button" hidden>Resolver solapamientos</button>
+        <button id="btn-export-resolved" class="btn-ghost" type="button" hidden>Exportar sin solapamientos</button>
         <button id="btn-fit" class="btn-ghost" type="button">Encuadrar</button>
         <button id="btn-print" class="btn-ghost" type="button">Imprimir</button>
         <button id="btn-back" class="btn-ghost" type="button">Nuevo archivo</button>
@@ -128,6 +130,27 @@
             <span class="muted" id="rank-sub">por horas</span>
           </div>
           <div id="rank-list"></div>
+        </section>
+
+        <section id="compare-panel" class="compare-panel" hidden>
+          <div class="panel-row">
+            <h2 class="panel-title">Comparación de solapamientos</h2>
+          </div>
+          <div class="compare-legend">
+            <div class="compare-legend-item">
+              <span class="compare-swatch swatch-original"></span>
+              <span>Original <span class="muted" style="margin:0">(atenuado)</span></span>
+            </div>
+            <div class="compare-legend-item">
+              <span class="compare-swatch swatch-resolved"></span>
+              <span>Sin solapamientos <span class="muted" style="margin:0">(sólido)</span></span>
+            </div>
+          </div>
+          <div class="compare-mode-row">
+            <button id="btn-cmp-before" class="btn-mini" type="button">Solo original</button>
+            <button id="btn-cmp-both" class="btn-mini btn-mini-primary" type="button">Comparar</button>
+            <button id="btn-cmp-after" class="btn-mini" type="button">Solo resuelto</button>
+          </div>
         </section>
 
         <section id="info" class="info" hidden>
