@@ -84,6 +84,19 @@
           <input id="inc-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
         </section>
 
+        <section class="panel panel-csv">
+          <div class="panel-row">
+            <h2 class="panel-title">CSV Polígonos</h2>
+          </div>
+          <div class="btn-row">
+            <button id="btn-csv-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV</button>
+            <button id="btn-csv-clear" class="btn-mini" type="button" disabled>Quitar</button>
+          </div>
+          <p id="csv-meta" class="muted">Sin datos cargados</p>
+          <div id="csv-columns" class="csv-columns" hidden></div>
+          <input id="csv-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
+        </section>
+
         <section class="panel grow">
           <div class="panel-row">
             <h2 id="groups-title" class="panel-title">Grupos</h2>
@@ -132,6 +145,15 @@
           <div id="rank-list"></div>
         </section>
 
+        <section id="csv-panel" class="csv-panel" hidden>
+          <div class="panel-row">
+            <h2 class="panel-title" id="csv-panel-title">CSV Polígonos</h2>
+            <span class="muted" id="csv-panel-sub"></span>
+          </div>
+          <div id="csv-legend" class="csv-legend"></div>
+          <div id="csv-rank" class="rank-list"></div>
+        </section>
+
         <section id="compare-panel" class="compare-panel" hidden>
           <div class="panel-row">
             <h2 class="panel-title">Comparación de solapamientos</h2>
@@ -167,6 +189,6 @@
   </div>
 
   <script src="js/data-store.js"></script>
-  <script src="js/mapa.js"></script>
+  <script type="module" src="js/modules/app.js"></script>
 </body>
 </html>

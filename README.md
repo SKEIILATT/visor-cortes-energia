@@ -1,103 +1,82 @@
-﻿# Visor GeoJSON v5 (versión mejorada)
+# Visor GeoJSON
 
-## Contexto
-Esta carpeta (`v5-web-humano`) es una evolución completa de la versión anterior (`v4-web`) y **no modifica el proyecto original**.
-La idea fue pasar de un visor funcional a una herramienta más robusta, explicable y mantenible.
+An interactive geospatial viewer for electrical outage data. Loads a GeoJSON FeatureCollection from the browser, analyzes it locally, and renders an interactive Leaflet map with group-based filtering, a temporal outage timeline, and several analysis panels.
 
-## Qué mejoré
+## Running locally
 
-### 1) Arquitectura y escalabilidad
-- Reemplacé el flujo de `localStorage` por **IndexedDB** para soportar datasets más grandes.
-- El mapa ya no depende de un único blob en memoria de la página anterior.
-- La navegación ahora se hace con `mapa.html?dataset=<id>`.
+ES modules require a real HTTP server. You cannot open the files directly via `file://`.
 
-### 2) Rendimiento
-- Agregué un **Web Worker** (`js/workers/geo.worker.js`) para analizar:
-  - agrupación automática,
-  - franjas de corte,
-  - buckets del timeline,
-  - esquema de propiedades.
-- Si el Worker no está disponible (por ejemplo, según contexto del navegador), existe un **fallback local** en `mapa.js`.
+```bash
+# Python 3
+python -m http.server 8080
 
-### 3) Funcionalidades analíticas nuevas
-- Filtro por atributos (campo + operador + valor).
-- Timeline con reproducción y velocidades (`1x`, `4x`, `8x`).
-- Modo de color:
-  - por grupo,
-  - por intensidad de horas de corte.
-- Ranking de grupos (general y por instante del timeline).
-- Panel de detalle por feature con propiedades y franjas.
-
-### 4) Incidencias (CSV/Excel) mejoradas
-- Parser más robusto con `PapaParse` para CSV.
-- Soporte Excel (`xlsx`, `xls`) con `xlsx`.
-- Detección flexible de columnas de lat/lon.
-- Visualización con **cluster opcional** (`Leaflet.markercluster`).
-
-### 5) Exportación y colaboración
-- Exportación de vista filtrada a **GeoJSON**.
-- Exportación de resumen por grupos a **CSV**.
-- Botón de **compartir vista** con estado guardado en URL hash:
-  - centro/zoom,
-  - minuto del timeline,
-  - modo de color,
-  - grupos ocultos,
-  - filtro activo.
-
-### 6) UI/UX y estilo
-- Rediseño completo con una estética más sobria y natural.
-- Mejor responsive para móvil (sidebar colapsable, paneles adaptativos).
-- Eliminé `onclick` inline y pasé a listeners en JS.
-
-## Estructura principal
-
-- `index.html`: carga inicial de GeoJSON
-- `mapa.html`: interfaz principal del visor
-- `js/data-store.js`: capa de persistencia en IndexedDB
-- `js/index.js`: validación y guardado del dataset
-- `js/mapa.js`: lógica del visor, filtros, timeline, exportaciones, incidencias
-- `js/workers/geo.worker.js`: análisis pesado fuera del hilo principal
-- `styles/index.css`: estilos de la pantalla de carga
-- `styles/mapa.css`: estilos del visor principal
-
-## Cómo ejecutar
-
-### Opción rápida
-1. Abre `index.html` en navegador.
-2. Carga un `.geojson`.
-3. Entra al mapa y usa filtros/timeline.
-
-### Opción recomendada (para máxima compatibilidad)
-Levantar un servidor local simple en esta carpeta, por ejemplo:
-
-```powershell
-# desde v5-web-humano
-python -m http.server 5500
+# Node.js (npx)
+npx serve .
 ```
 
-Luego abrir: `http://localhost:5500/index.html`
+Then open `http://localhost:8080` in your browser.
 
-## Diferencias clave vs v4
-- `v4`: transporte por `localStorage`, menos escalable para archivos grandes.
-- `v5`: persistencia en IndexedDB + análisis en Worker + exportaciones + URL compartible.
-- `v4`: parser CSV básico.
-- `v5`: parser robusto y soporte real CSV/Excel.
-- `v4`: estilo más rígido y menos adaptable.
-- `v5`: interfaz más limpia, más legible y mejor en móvil.
+## File structure
 
-## Cómo explicarlo (guion corto)
+```text
+index.html          Landing page — file upload
+mapa.html           Map viewer page
+styles/
+  index.css         Landing page styles
+  mapa.css          Viewer styles
+js/
+  data-store.js     IndexedDB wrapper (IIFE, window.GeoStore)
+  upload.js         Landing page ES module
+  workers/
+    geo.worker.js   Web Worker for GeoJSON analysis
+  modules/
+    app.js          Main entry point
+    state.js        Shared state factory and element refs
+    utils.js        Pure utility functions
+    geo-analysis.js Worker launcher and fallback analyzer
+    styling.js      Color and style computation
+    layers.js       Leaflet feature layer management
+    fused.js        Dissolved (fused) geometry view
+    groups.js       Group visibility and list rendering
+    timeline.js     Temporal outage filter and playback
+    ranking.js      Top-groups ranking panel
+    info-panel.js   Feature detail side panel
+    incidents.js    CSV/Excel incidence point loader
+    csv-paint.js    CSV-to-polygon data join and heat coloring
+    overlap.js      Polygon overlap resolver
+    export.js       GeoJSON and CSV export
+    hash-state.js   URL hash state sync
+    theme.js        Light/dark theme toggle
+```
 
-> "Lo que hice fue rehacer la app en una versión paralela para no tocar la base original.
-> El principal cambio técnico fue pasar a IndexedDB y mover el análisis geoespacial a Worker para evitar bloqueos.
-> Además añadí filtros por atributos, timeline reproducible, ranking dinámico, carga robusta de incidencias y exportaciones en GeoJSON/CSV.
-> A nivel de UX, rediseñé la interfaz para que sea más clara y usable en escritorio y móvil, y agregué una URL de estado para compartir vistas exactas." 
+## Key features
 
-## Limitaciones actuales y próximos pasos
-- Para datasets extremadamente grandes (decenas de MB con geometrías muy complejas), el siguiente paso sería vector tiles.
-- Se puede añadir autenticación/permisos si luego se integra en entorno institucional.
-- Se puede incorporar un módulo de métricas de desempeño para comparar tiempos por dataset.
+- Loads `.geojson` / `.json` files via drag-and-drop or file picker
+- Groups features by a detected property (e.g. `subgrupo`, `grupo`, `sector`)
+- Color-codes groups using a 15-color palette
+- Timeline slider filters which groups are active at a given minute of the day
+- Playback mode animates the timeline automatically
+- Fused view dissolves individual polygons per group using Turf.js
+- Incidence layer: loads point data from CSV or Excel and clusters markers
+- CSV paint: joins external CSV data to polygons and renders a heat-color map
+- Overlap resolver: removes polygon overlaps using a smallest-first subtraction strategy
+- Exports: visible GeoJSON, fused GeoJSON, summary CSV, resolved GeoJSON
+- URL hash preserves map position, active mode, hidden groups, and timeline state
 
----
+## Expected data format
 
-## Nota
-La versión original queda intacta en `v4-web`. Esta versión nueva vive totalmente separada en `v5-web-humano` para poder comparar comportamiento y código lado a lado.
+The viewer expects a GeoJSON `FeatureCollection`. Each feature should have:
+
+- A string property used for grouping (auto-detected; common names: `subgrupo`, `grupo`, `sector`, `zona`, `name`)
+- Optionally a `cortes_horas` property with outage time ranges in `HH:MM - HH:MM` format, separated by `|`, `;`, or `,`
+
+Example feature properties:
+
+```json
+{
+  "subgrupo": "ALI-04A",
+  "cortes_horas": "06:00 - 10:00|18:00 - 22:00"
+}
+```
+
+All data is processed entirely in the browser. Nothing is uploaded to any server.

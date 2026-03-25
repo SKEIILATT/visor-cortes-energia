@@ -731,3 +731,55 @@ body[data-theme='dark'] .inc-marker {
     height: 100vh !important;
   }
 }
+
+/* ── CSV Polygon Paint ──────────────────────────────────────── */
+.csv-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.csv-panel {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 260px;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  z-index: 900;
+}
+
+.csv-legend {
+  margin: 8px 0;
+}
+
+.csv-legend-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.csv-swatch {
+  flex: 1;
+  display: block;
+}
+
+.csv-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.info-row-active {
+  background: var(--primary-soft);
+  border-radius: 4px;
+}
