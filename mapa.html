@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visor GeoJSON - Mapa</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -70,31 +73,38 @@
           </div>
         </section>
 
-        <section class="panel panel-inc">
-          <div class="panel-row">
+        <section class="panel panel-inc collapsed">
+          <div class="panel-row panel-row-toggle">
             <h2 class="panel-title">Incidencias</h2>
+            <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
           </div>
-          <div class="btn-row">
-            <button id="btn-inc-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV/Excel</button>
-            <button id="btn-inc-toggle" class="btn-mini" type="button" disabled>Ocultar</button>
-            <button id="btn-inc-cluster" class="btn-mini" type="button" disabled>Cluster ON</button>
-            <button id="btn-inc-clear" class="btn-mini" type="button" disabled>Quitar</button>
+          <div class="panel-body">
+            <div class="btn-row">
+              <button id="btn-inc-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV/Excel</button>
+              <button id="btn-inc-toggle" class="btn-mini" type="button" disabled>Ocultar</button>
+              <button id="btn-inc-cluster" class="btn-mini" type="button" disabled>Cluster ON</button>
+              <button id="btn-inc-clear" class="btn-mini" type="button" disabled>Quitar</button>
+            </div>
+            <p id="inc-meta" class="muted">Sin incidencias cargadas</p>
+            <input id="inc-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
           </div>
-          <p id="inc-meta" class="muted">Sin incidencias cargadas</p>
-          <input id="inc-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
         </section>
 
-        <section class="panel panel-csv">
-          <div class="panel-row">
+        <section class="panel panel-csv collapsed">
+          <div class="panel-row panel-row-toggle">
             <h2 class="panel-title">CSV Polígonos</h2>
+            <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
           </div>
-          <div class="btn-row">
-            <button id="btn-csv-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV</button>
-            <button id="btn-csv-clear" class="btn-mini" type="button" disabled>Quitar</button>
+          <div class="panel-body">
+            <div class="btn-row">
+              <button id="btn-csv-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV</button>
+              <button id="btn-csv-clear" class="btn-mini" type="button" disabled>Quitar</button>
+            </div>
+            <p id="csv-meta" class="muted">Sin datos cargados</p>
+            <div id="csv-columns" class="csv-columns" hidden></div>
+            <div id="csv-options" class="csv-options" hidden></div>
+            <input id="csv-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
           </div>
-          <p id="csv-meta" class="muted">Sin datos cargados</p>
-          <div id="csv-columns" class="csv-columns" hidden></div>
-          <input id="csv-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
         </section>
 
         <section class="panel grow">

@@ -5,12 +5,12 @@ import { applyTheme, toggleTheme, loadThemePreference } from './theme.js';
 import { readHashState, applyPendingHashState, syncHashState } from './hash-state.js';
 import { buildFeatureLayers, refreshFeatureVisibility, refreshFeatureStyles, fitInitialView } from './layers.js';
 import {
-  updateGeomToggleButton, ensureFusedLayersBuilt,
+  updateGeomToggleButton,
   refreshFusedStyles, refreshFusedVisibility, toggleGeometryMode,
 } from './fused.js';
 import {
-  prepareGroups, renderGroupList, refreshAfterVisibilityChange,
-  setAllGroupsVisibility, invertGroupsVisibility, showAffectedOnly, setGroupVisibility,
+  prepareGroups, renderGroupList,
+  setAllGroupsVisibility, invertGroupsVisibility, showAffectedOnly,
 } from './groups.js';
 import {
   setMinute, togglePlayback, setPlaybackSpeed,
@@ -21,7 +21,7 @@ import { openInfoPanel, closeInfoPanel } from './info-panel.js';
 import { parseIncidenceFile, renderIncidences, toggleIncidenceLayer, toggleIncidenceCluster, clearIncidences } from './incidents.js';
 import { loadCsvPolygonData, clearCsvPaint } from './csv-paint.js';
 import { runOverlapResolver, setCompareMode, exportResolvedGeoJSON } from './overlap.js';
-import { exportVisibleGeoJSON, exportFusedGeoJSON, exportSummaryCsv } from './export.js';
+import { exportFusedGeoJSON } from './export.js';
 import { shouldFeatureBeVisible } from './layers.js';
 
 const ctx = {
@@ -179,6 +179,12 @@ function bindUI() {
   });
 
   ctx.els.btnInfoClose.addEventListener('click', function () { closeInfoPanel(ctx); });
+
+  document.querySelectorAll('.btn-panel-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      this.closest('.panel').classList.toggle('collapsed');
+    });
+  });
 
   ctx.els.btnCsvLoad.addEventListener('click', function () { ctx.els.csvFileInput.click(); });
   ctx.els.csvFileInput.addEventListener('change', onCsvFileChange);

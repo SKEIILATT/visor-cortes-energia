@@ -36,9 +36,11 @@ function getCsvPaintColor(ctx, meta) {
   }
   const val = toNumber(row[col]);
   if (!Number.isFinite(val)) return '#c8ced7';
-  const range = colInfo.max - colInfo.min;
-  const ratio = range > 0 ? (val - colInfo.min) / range : 0.5;
-  return csvHeatColor(Math.max(0, Math.min(1, ratio)));
+  const lo = ctx.state.csvPaint.manualMin !== null ? ctx.state.csvPaint.manualMin : colInfo.min;
+  const hi = ctx.state.csvPaint.manualMax !== null ? ctx.state.csvPaint.manualMax : colInfo.max;
+  const range = hi - lo;
+  const ratio = range > 0 ? (val - lo) / range : 0.5;
+  return csvHeatColor(Math.max(0, Math.min(1, ratio)), ctx.state.csvPaint.palette);
 }
 
 export function findCsvColumn(ctx, name) {
@@ -64,17 +66,18 @@ export function outageHeatColor(totalMin) {
   return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
-export function csvHeatColor(ratio) {
-  const stops = [
-    [41, 98, 255],
-    [0, 200, 200],
-    [16, 185, 129],
-    [245, 200, 11],
-    [249, 115, 22],
-    [192, 38, 61],
-  ];
+export const CSV_PALETTES = {
+  heat:     { label: 'Calor',    stops: [[41,98,255],[0,200,200],[16,185,129],[245,200,11],[249,115,22],[192,38,61]] },
+  semaforo: { label: 'Semáforo', stops: [[34,197,94],[132,204,22],[250,204,21],[251,146,60],[239,68,68],[185,28,28]] },
+  frio:     { label: 'Frío',     stops: [[220,235,255],[147,197,253],[59,130,246],[29,78,216],[30,27,153],[15,10,90]] },
+  magma:    { label: 'Magma',    stops: [[10,10,10],[70,10,100],[160,30,100],[250,120,60],[255,200,100],[255,255,180]] },
+};
+
+export function csvHeatColor(ratio, palette) {
+  const key = (palette && CSV_PALETTES[palette]) ? palette : 'heat';
+  const stops = CSV_PALETTES[key].stops;
   const n = stops.length - 1;
-  const t = ratio * n;
+  const t = Math.max(0, Math.min(1, ratio)) * n;
   const lo = Math.floor(t);
   const hi = Math.min(lo + 1, n);
   const f = t - lo;

@@ -1,5 +1,5 @@
 import { escapeHtml, normalizeHeader, readFileAsText, readFileAsArrayBuffer, toNumber } from './utils.js';
-import { csvHeatColor, findCsvColumn } from './styling.js';
+import { csvHeatColor, findCsvColumn, CSV_PALETTES } from './styling.js';
 
 export async function loadCsvPolygonData(ctx, file) {
   const ext = file.name.split('.').pop().toLowerCase();
@@ -204,13 +204,96 @@ export function renderCsvSidebar(ctx) {
       setCsvPaintColumn(ctx, colName);
     });
   }
+
+  renderCsvOptions(ctx);
 }
 
 export function setCsvPaintColumn(ctx, colName) {
   ctx.state.csvPaint.activeColumn = colName;
+  ctx.state.csvPaint.manualMin = null;
+  ctx.state.csvPaint.manualMax = null;
   renderCsvSidebar(ctx);
   renderCsvPanel(ctx);
   ctx._hooks.refreshFeatureStyles(ctx);
+}
+
+export function setCsvPaintPalette(ctx, name) {
+  if (!CSV_PALETTES[name]) return;
+  ctx.state.csvPaint.palette = name;
+  renderCsvOptions(ctx);
+  renderCsvPanel(ctx);
+  ctx._hooks.refreshFeatureStyles(ctx);
+}
+
+function renderCsvOptions(ctx) {
+  if (!ctx.els.csvOptions) return;
+  if (!ctx.state.csvPaint.columns.length) {
+    ctx.els.csvOptions.hidden = true;
+    return;
+  }
+
+  const col = ctx.state.csvPaint.activeColumn;
+  const colInfo = col ? findCsvColumn(ctx, col) : null;
+  const loVal = ctx.state.csvPaint.manualMin !== null ? ctx.state.csvPaint.manualMin : (colInfo ? colInfo.min : 0);
+  const hiVal = ctx.state.csvPaint.manualMax !== null ? ctx.state.csvPaint.manualMax : (colInfo ? colInfo.max : 100);
+
+  const currentPal = ctx.state.csvPaint.palette || 'heat';
+  const palKeys = Object.keys(CSV_PALETTES);
+  const palBtns = palKeys.map(function (key) {
+    const pal = CSV_PALETTES[key];
+    const gradParts = pal.stops.map(function (s, i) {
+      return 'rgb(' + s[0] + ',' + s[1] + ',' + s[2] + ') ' + Math.round(i / (pal.stops.length - 1) * 100) + '%';
+    });
+    const grad = 'linear-gradient(to right, ' + gradParts.join(', ') + ')';
+    const active = currentPal === key;
+    return '<button class="csv-pal-btn' + (active ? ' active' : '') + '" data-pal="' + key + '" title="' + pal.label + '" style="background:' + grad + '"></button>';
+  }).join('');
+
+  ctx.els.csvOptions.innerHTML =
+    '<div class="csv-opt-row">' +
+      '<span class="csv-opt-label">Paleta</span>' +
+      '<div class="csv-pal-row">' + palBtns + '</div>' +
+    '</div>' +
+    '<div class="csv-opt-row">' +
+      '<span class="csv-opt-label">Rango</span>' +
+      '<div class="csv-range-row">' +
+        '<input type="number" class="csv-range-input" id="csv-rmin" value="' + loVal + '" step="any">' +
+        '<span class="csv-range-sep">–</span>' +
+        '<input type="number" class="csv-range-input" id="csv-rmax" value="' + hiVal + '" step="any">' +
+        '<button class="btn-mini" id="csv-range-reset" title="Restablecer">↺</button>' +
+      '</div>' +
+    '</div>';
+  ctx.els.csvOptions.hidden = false;
+
+  const palBtnEls = ctx.els.csvOptions.querySelectorAll('.csv-pal-btn');
+  for (let i = 0; i < palBtnEls.length; i += 1) {
+    palBtnEls[i].addEventListener('click', function () {
+      setCsvPaintPalette(ctx, this.getAttribute('data-pal'));
+    });
+  }
+
+  const rminEl = document.getElementById('csv-rmin');
+  const rmaxEl = document.getElementById('csv-rmax');
+  const resetEl = document.getElementById('csv-range-reset');
+
+  function applyRange() {
+    const minV = parseFloat(rminEl.value);
+    const maxV = parseFloat(rmaxEl.value);
+    ctx.state.csvPaint.manualMin = Number.isFinite(minV) ? minV : null;
+    ctx.state.csvPaint.manualMax = Number.isFinite(maxV) ? maxV : null;
+    renderCsvPanel(ctx);
+    ctx._hooks.refreshFeatureStyles(ctx);
+  }
+
+  rminEl.addEventListener('change', applyRange);
+  rmaxEl.addEventListener('change', applyRange);
+  resetEl.addEventListener('click', function () {
+    ctx.state.csvPaint.manualMin = null;
+    ctx.state.csvPaint.manualMax = null;
+    renderCsvOptions(ctx);
+    renderCsvPanel(ctx);
+    ctx._hooks.refreshFeatureStyles(ctx);
+  });
 }
 
 export function renderCsvPanel(ctx) {
@@ -222,24 +305,35 @@ export function renderCsvPanel(ctx) {
   const col = ctx.state.csvPaint.activeColumn;
   const colInfo = col ? findCsvColumn(ctx, col) : null;
 
+  const palette = ctx.state.csvPaint.palette || 'heat';
+  const loVal = ctx.state.csvPaint.manualMin !== null ? ctx.state.csvPaint.manualMin : (colInfo ? colInfo.min : 0);
+  const hiVal = ctx.state.csvPaint.manualMax !== null ? ctx.state.csvPaint.manualMax : (colInfo ? colInfo.max : 0);
+
   ctx.els.csvPanel.hidden = false;
   ctx.els.csvPanelTitle.textContent = 'CSV: ' + (colInfo ? colInfo.label : 'sin columna');
-  ctx.els.csvPanelSub.textContent = colInfo ? (colInfo.min.toFixed(1) + ' – ' + colInfo.max.toFixed(1)) : '';
+  ctx.els.csvPanelSub.textContent = colInfo ? ctx.state.csvPaint.fileName : '';
 
   if (colInfo) {
-    const stops = 6;
+    const swatchCount = 20;
     const swatches = [];
-    for (let i = 0; i < stops; i += 1) {
-      const r = i / (stops - 1);
-      swatches.push('<span class="csv-swatch" style="background:' + csvHeatColor(r) + '"></span>');
+    for (let i = 0; i < swatchCount; i += 1) {
+      const r = i / (swatchCount - 1);
+      swatches.push('<span class="csv-swatch" style="background:' + csvHeatColor(r, palette) + '"></span>');
     }
+
+    const tickCount = 5;
+    const ticks = [];
+    for (let i = 0; i < tickCount; i += 1) {
+      const r = i / (tickCount - 1);
+      const val = loVal + r * (hiVal - loVal);
+      const label = Number.isInteger(val) ? String(val) : val.toFixed(1);
+      ticks.push('<span>' + label + '</span>');
+    }
+
     ctx.els.csvLegend.innerHTML =
+      '<div class="csv-legend-unit">' + escapeHtml(colInfo.label) + '</div>' +
       '<div class="csv-legend-bar">' + swatches.join('') + '</div>' +
-      '<div class="csv-legend-labels">' +
-        '<span>' + colInfo.min.toFixed(1) + '</span>' +
-        '<span>' + ((colInfo.min + colInfo.max) / 2).toFixed(1) + '</span>' +
-        '<span>' + colInfo.max.toFixed(1) + '</span>' +
-      '</div>';
+      '<div class="csv-legend-labels">' + ticks.join('') + '</div>';
   } else {
     ctx.els.csvLegend.innerHTML = '';
   }
@@ -271,7 +365,8 @@ export function renderCsvPanel(ctx) {
   for (let i = 0; i < top.length; i += 1) {
     const item = top[i];
     const pct = Math.max(8, Math.round((item.val / maxVal) * 100));
-    const barColor = csvHeatColor(colInfo.max > colInfo.min ? (item.val - colInfo.min) / (colInfo.max - colInfo.min) : 0.5);
+    const range = hiVal - loVal;
+    const barColor = csvHeatColor(range > 0 ? Math.max(0, Math.min(1, (item.val - loVal) / range)) : 0.5, palette);
     parts.push(
       '<div class="rank-item" data-fidx="' + item.featureIdx + '">' +
         '<div class="rank-name">' + (i + 1) + '. ' + escapeHtml(item.key) + '</div>' +
@@ -298,11 +393,16 @@ export function clearCsvPaint(ctx) {
   ctx.state.csvPaint.columns = [];
   ctx.state.csvPaint.activeColumn = null;
   ctx.state.csvPaint.fileName = null;
+  ctx.state.csvPaint.palette = 'heat';
+  ctx.state.csvPaint.manualMin = null;
+  ctx.state.csvPaint.manualMax = null;
 
   ctx.els.csvMeta.textContent = 'Sin datos cargados';
   ctx.els.btnCsvClear.disabled = true;
   ctx.els.csvColumns.hidden = true;
   ctx.els.csvColumns.innerHTML = '';
+  ctx.els.csvOptions.hidden = true;
+  ctx.els.csvOptions.innerHTML = '';
   ctx.els.csvPanel.hidden = true;
 
   ctx._hooks.refreshFeatureStyles(ctx);

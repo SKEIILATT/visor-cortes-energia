@@ -12,7 +12,7 @@ export function createState() {
     fused: { built: false, groupLayers: new Map() },
     resolved: { done: false, features: [], previewLayer: null },
     compareMode: 'both',
-    csvPaint: { loaded: false, rows: new Map(), columns: [], activeColumn: null, fileName: null },
+    csvPaint: { loaded: false, rows: new Map(), columns: [], activeColumn: null, fileName: null, palette: 'heat', manualMin: null, manualMax: null },
   };
 }
 
@@ -77,6 +77,7 @@ export function createEls() {
     btnCsvClear:      document.getElementById('btn-csv-clear'),
     csvMeta:          document.getElementById('csv-meta'),
     csvColumns:       document.getElementById('csv-columns'),
+    csvOptions:       document.getElementById('csv-options'),
     csvPanel:         document.getElementById('csv-panel'),
     csvPanelTitle:    document.getElementById('csv-panel-title'),
     csvPanelSub:      document.getElementById('csv-panel-sub'),
