@@ -3,6 +3,7 @@ import { shouldFeatureBeVisible } from './layers.js';
 import { dissolvePolygons } from './fused.js';
 import { isGroupAffectedAt } from './timeline.js';
 import { countVisibleFeaturesInGroup } from './groups.js';
+import { buildCsvTextFromRows, buildFeatureExportRows } from './feature-insights.js';
 
 export function fileBaseName(ctx) {
   const name = ctx.state.datasetRecord && ctx.state.datasetRecord.name ? ctx.state.datasetRecord.name : 'dataset';
@@ -92,6 +93,23 @@ export function exportSummaryCsv(ctx) {
 
   downloadText(fileBaseName(ctx) + '_resumen.csv', rows.join('\n'), 'text/csv;charset=utf-8');
   ctx.els.statusPill.textContent = 'Resumen CSV exportado.';
+  ctx.els.statusPill.classList.remove('ok', 'warn', 'err');
+  ctx.els.statusPill.classList.add('ok');
+}
+
+export function exportFeatureTableCsv(ctx, visibleOnly) {
+  const rows = buildFeatureExportRows(ctx, { visibleOnly: visibleOnly });
+  if (!rows.length) {
+    ctx.els.statusPill.textContent = 'No hay polígonos para exportar.';
+    ctx.els.statusPill.classList.remove('ok', 'warn', 'err');
+    ctx.els.statusPill.classList.add('warn');
+    return;
+  }
+
+  const suffix = visibleOnly ? '_poligonos_visibles.csv' : '_poligonos_completo.csv';
+  const csv = buildCsvTextFromRows(rows);
+  downloadText(fileBaseName(ctx) + suffix, csv, 'text/csv;charset=utf-8');
+  ctx.els.statusPill.textContent = 'CSV exportado (' + rows.length + ' polígonos).';
   ctx.els.statusPill.classList.remove('ok', 'warn', 'err');
   ctx.els.statusPill.classList.add('ok');
 }

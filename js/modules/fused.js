@@ -126,7 +126,7 @@ export function refreshFusedVisibility(ctx) {
 export function updateGeomToggleButton(ctx) {
   if (!ctx.els.btnGeomToggle) return;
   const isFused = ctx.state.geomMode === 'fused';
-  ctx.els.btnGeomToggle.textContent = 'Vista fusionada v4: ' + (isFused ? 'ON' : 'OFF');
+  ctx.els.btnGeomToggle.textContent = isFused ? 'Vista integrada' : 'Vista analítica';
   ctx.els.btnGeomToggle.classList.toggle('btn-mini-primary', isFused);
   ctx.els.btnExportFused.hidden = !isFused;
 }

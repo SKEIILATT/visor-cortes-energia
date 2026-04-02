@@ -26,8 +26,8 @@ export function updateRanking(ctx) {
   const top = rows.slice(0, 8);
   const max = top.length ? top[0].metric : 1;
 
-  ctx.els.rankTitle.textContent = ctx.state.minute >= 0 ? 'Afectadas ahora' : 'Top zonas por cortes';
-  ctx.els.rankSub.textContent = ctx.state.mode === 'outage' ? 'por horas' : 'por grupo';
+  ctx.els.rankTitle.textContent = ctx.state.minute >= 0 ? 'Prioridad temporal' : 'Jerarquía de exposición';
+  ctx.els.rankSub.textContent = ctx.state.mode === 'outage' ? 'lectura por intensidad horaria' : 'lectura por agrupación';
 
   if (!top.length) {
     ctx.els.rankList.innerHTML = '<p class="muted">No hay datos para este estado.</p>';

@@ -10,7 +10,7 @@ export function applyTheme(ctx, theme) {
   document.body.setAttribute('data-theme', next);
   localStorage.setItem('geo_viewer_theme', next);
   if (ctx.els.btnTheme) {
-    ctx.els.btnTheme.textContent = next === 'dark' ? 'Modo claro' : 'Modo oscuro';
+    ctx.els.btnTheme.textContent = next === 'dark' ? 'Tema claro' : 'Tema oscuro';
   }
 }
 

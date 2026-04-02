@@ -23,10 +23,10 @@ export async function loadCsvPolygonData(ctx, file) {
 
   const headers = Object.keys(rawRows[0]);
   const csvIdField = detectCsvIdField(headers);
-  if (!csvIdField) throw new Error('No se detectó columna de ID de polígono. Incluye una columna llamada "id", "codigo", "ID_POLIGONO", etc.');
+  if (!csvIdField) throw new Error('No se detectó una columna identificadora. Incluye una columna tipo "id", "codigo", "subgrupo", "grupo" o equivalente.');
 
   const geoIdResult = detectGeoIdField(ctx, rawRows, csvIdField);
-  if (!geoIdResult) throw new Error('No se encontró propiedad en el GeoJSON que coincida con los IDs del CSV. Verifica que los IDs coincidan.');
+  if (!geoIdResult) throw new Error('No se encontró una propiedad del GeoJSON que coincida con la columna identificadora del archivo tabular.');
   const geoIdField = geoIdResult.field;
   const useNorm = geoIdResult.useNorm;
 
@@ -46,21 +46,27 @@ export async function loadCsvPolygonData(ctx, file) {
     if (featureIdx !== undefined) rows.set(featureIdx, rawRows[i]);
   }
 
-  if (!rows.size) throw new Error('No se enlazó ningún polígono. Verifica que los IDs del CSV coincidan con la propiedad "' + geoIdField + '" del GeoJSON.');
+  if (!rows.size) throw new Error('No se enlazó ningún polígono. Revisa que la columna identificadora coincida con la propiedad "' + geoIdField + '" del GeoJSON.');
 
   const numericCols = detectNumericColumns(rawRows, headers, csvIdField);
+  if (!numericCols.length) throw new Error('El archivo enlazó polígonos, pero no contiene columnas numéricas para pintar.');
 
   ctx.state.csvPaint.loaded = true;
   ctx.state.csvPaint.rows = rows;
   ctx.state.csvPaint.columns = numericCols;
   ctx.state.csvPaint.fileName = file.name;
-  ctx.state.csvPaint.activeColumn = numericCols.length ? numericCols[0].name : null;
+  ctx.state.csvPaint.palette = 'cividis';
+  ctx.state.csvPaint.activeColumn = chooseDefaultNumericColumn(numericCols);
 
   renderCsvSidebar(ctx);
   renderCsvPanel(ctx);
+  const csvPanelSection = document.querySelector('.panel-csv');
+  if (csvPanelSection) csvPanelSection.classList.remove('collapsed');
   if (ctx.state.csvPaint.activeColumn) {
+    if (ctx._hooks.setColorMode) ctx._hooks.setColorMode(ctx, 'variable');
     ctx._hooks.refreshFeatureStyles(ctx);
   }
+  announceCsvPaintStatus(ctx, 'Mapa pintado por ' + ctx.state.csvPaint.activeColumn + '.');
 }
 
 export function detectCsvIdField(headers) {
@@ -175,7 +181,8 @@ export function buildColLabel(colName) {
 }
 
 export function renderCsvSidebar(ctx) {
-  ctx.els.csvMeta.textContent = ctx.state.csvPaint.fileName + ' · ' + ctx.state.csvPaint.rows.size + ' polígonos enlazados';
+  const active = ctx.state.csvPaint.activeColumn ? ' · variable activa: ' + ctx.state.csvPaint.activeColumn : '';
+  ctx.els.csvMeta.textContent = ctx.state.csvPaint.fileName + ' · ' + ctx.state.csvPaint.rows.size + ' polígonos enlazados' + active;
   ctx.els.btnCsvClear.disabled = false;
 
   if (!ctx.state.csvPaint.columns.length) {
@@ -214,7 +221,9 @@ export function setCsvPaintColumn(ctx, colName) {
   ctx.state.csvPaint.manualMax = null;
   renderCsvSidebar(ctx);
   renderCsvPanel(ctx);
+  if (ctx._hooks.setColorMode) ctx._hooks.setColorMode(ctx, 'variable');
   ctx._hooks.refreshFeatureStyles(ctx);
+  announceCsvPaintStatus(ctx, 'Mapa pintado por ' + colName + '.');
 }
 
 export function setCsvPaintPalette(ctx, name) {
@@ -223,6 +232,7 @@ export function setCsvPaintPalette(ctx, name) {
   renderCsvOptions(ctx);
   renderCsvPanel(ctx);
   ctx._hooks.refreshFeatureStyles(ctx);
+  announceCsvPaintStatus(ctx, 'Paleta cambiada a ' + CSV_PALETTES[name].label + '.');
 }
 
 function renderCsvOptions(ctx) {
@@ -405,8 +415,24 @@ export function clearCsvPaint(ctx) {
   ctx.els.csvOptions.innerHTML = '';
   ctx.els.csvPanel.hidden = true;
 
+  if (ctx._hooks.setColorMode && ctx.state.colorMode === 'variable') ctx._hooks.setColorMode(ctx, 'group');
   ctx._hooks.refreshFeatureStyles(ctx);
-  ctx.els.statusPill.textContent = 'Datos CSV eliminados.';
+  if (ctx._hooks.renderInsights) ctx._hooks.renderInsights(ctx);
+  announceCsvPaintStatus(ctx, 'Mapa por variable desactivado.');
+}
+
+function chooseDefaultNumericColumn(columns) {
+  const priority = ['indice_prioridad', 'clientes_afectados', 'energia_mwh', 'duracion_horas', 'criticidad'];
+  for (let i = 0; i < priority.length; i += 1) {
+    for (let j = 0; j < columns.length; j += 1) {
+      if (normalizeHeader(columns[j].name) === normalizeHeader(priority[i])) return columns[j].name;
+    }
+  }
+  return columns[0].name;
+}
+
+function announceCsvPaintStatus(ctx, text) {
+  ctx.els.statusPill.textContent = text;
   ctx.els.statusPill.classList.remove('ok', 'warn', 'err');
   ctx.els.statusPill.classList.add('ok');
 }

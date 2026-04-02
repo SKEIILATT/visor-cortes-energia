@@ -3,7 +3,7 @@ import { setStatus, debounce } from './utils.js';
 import { analyzeGeojsonInWorker, analyzeGeojsonFallback } from './geo-analysis.js';
 import { applyTheme, toggleTheme, loadThemePreference } from './theme.js';
 import { readHashState, applyPendingHashState, syncHashState } from './hash-state.js';
-import { buildFeatureLayers, refreshFeatureVisibility, refreshFeatureStyles, fitInitialView } from './layers.js';
+import { buildFeatureLayers, refreshFeatureVisibility, refreshFeatureStyles, fitInitialView, hideAllFeatureTooltips } from './layers.js';
 import {
   updateGeomToggleButton,
   refreshFusedStyles, refreshFusedVisibility, toggleGeometryMode,
@@ -17,11 +17,12 @@ import {
   buildTimelineTrack, countAffectedGroups, countOutageGroups,
 } from './timeline.js';
 import { updateRanking } from './ranking.js';
+import { renderInsights } from './insights.js';
 import { openInfoPanel, closeInfoPanel } from './info-panel.js';
 import { parseIncidenceFile, renderIncidences, toggleIncidenceLayer, toggleIncidenceCluster, clearIncidences } from './incidents.js';
 import { loadCsvPolygonData, clearCsvPaint } from './csv-paint.js';
 import { runOverlapResolver, setCompareMode, exportResolvedGeoJSON } from './overlap.js';
-import { exportFusedGeoJSON } from './export.js';
+import { exportFeatureTableCsv, exportFusedGeoJSON } from './export.js';
 import { shouldFeatureBeVisible } from './layers.js';
 
 const ctx = {
@@ -45,6 +46,8 @@ document.addEventListener('DOMContentLoaded', function () {
     refreshFusedVisibility: function (c) { refreshFusedVisibility(c); },
     refreshFeatureStyles: function (c) { refreshFeatureStyles(c); },
     updateRanking:       function (c) { updateRanking(c); },
+    renderInsights:      function (c) { renderInsights(c); },
+    setColorMode:        function (c, mode) { setColorMode(c, mode); },
     syncHashState:       function (c) { syncHashState(c); },
     applyTheme:          function (c, theme) { applyTheme(c, theme); },
     setMinute:           function (c, minute) { setMinute(c, minute); },
@@ -98,6 +101,7 @@ async function boot() {
 
   updateHeader(ctx);
   renderGroupList(ctx);
+  renderInsights(ctx);
   refreshAll(ctx);
   fitInitialView(ctx);
 
@@ -126,6 +130,8 @@ async function boot() {
 
 function bindUI() {
   ctx.els.btnTheme.addEventListener('click', function () { toggleTheme(ctx); });
+  ctx.els.btnExportCsvAll.addEventListener('click', function () { exportFeatureTableCsv(ctx, false); });
+  ctx.els.btnExportCsvVisible.addEventListener('click', function () { exportFeatureTableCsv(ctx, true); });
   document.getElementById('btn-export-fused').addEventListener('click', function () { exportFusedGeoJSON(ctx); });
   ctx.els.btnResolveOverlaps.addEventListener('click', function () { runOverlapResolver(ctx); });
   ctx.els.btnExportResolved.addEventListener('click', function () { exportResolvedGeoJSON(ctx); });
@@ -141,12 +147,21 @@ function bindUI() {
   ctx.els.btnSidebar.addEventListener('click', function () {
     ctx.els.sidebar.classList.toggle('open');
   });
+  if (ctx.els.btnRail) {
+    ctx.els.btnRail.addEventListener('click', function () { toggleAnalysisRail(ctx, true); });
+  }
+  if (ctx.els.btnRailClose) {
+    ctx.els.btnRailClose.addEventListener('click', function () { toggleAnalysisRail(ctx, false); });
+  }
 
   ctx.els.groupSearch.addEventListener('input', function () { renderGroupList(ctx); });
   ctx.els.btnAll.addEventListener('click', function () { setAllGroupsVisibility(ctx, true); });
   ctx.els.btnNone.addEventListener('click', function () { setAllGroupsVisibility(ctx, false); });
   ctx.els.btnInvert.addEventListener('click', function () { invertGroupsVisibility(ctx); });
   ctx.els.btnAffectedOnly.addEventListener('click', function () { showAffectedOnly(ctx); });
+  ctx.els.btnColorGroup.addEventListener('click', function () { setColorMode(ctx, 'group'); });
+  ctx.els.btnColorOutage.addEventListener('click', function () { setColorMode(ctx, 'outage'); });
+  ctx.els.btnColorVariable.addEventListener('click', function () { setColorMode(ctx, 'variable'); });
 
   if (ctx.els.btnModeGroup) {
     ctx.els.btnModeGroup.addEventListener('click', function () { setMode(ctx, 'group'); });
@@ -189,6 +204,20 @@ function bindUI() {
   ctx.els.btnCsvLoad.addEventListener('click', function () { ctx.els.csvFileInput.click(); });
   ctx.els.csvFileInput.addEventListener('change', onCsvFileChange);
   ctx.els.btnCsvClear.addEventListener('click', function () { clearCsvPaint(ctx); });
+
+  document.addEventListener('keydown', function (event) {
+    const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setMinute(ctx, Math.max(0, (ctx.state.minute < 0 ? 0 : ctx.state.minute) - 15));
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setMinute(ctx, Math.min(1440, (ctx.state.minute < 0 ? 0 : ctx.state.minute) + 15));
+    } else if (event.key === 'Escape') {
+      closeInfoPanel(ctx);
+    }
+  });
 }
 
 function updateHeader(c) {
@@ -201,10 +230,12 @@ function updateHeader(c) {
   }).length;
 
   const affected = c.state.minute >= 0 ? countAffectedGroups(c, c.state.minute) : countOutageGroups(c);
+  const peakMinute = getPeakMinute(c);
 
   c.els.statFeatures.textContent = visibleFeatures.toLocaleString('es-EC');
   c.els.statGroups.textContent = String(visibleGroups);
   c.els.statAffected.textContent = String(affected);
+  c.els.statPeak.textContent = peakMinute;
 }
 
 function refreshAll(c) {
@@ -213,6 +244,7 @@ function refreshAll(c) {
   renderGroupList(c);
   updateHeader(c);
   updateRanking(c);
+  renderInsights(c);
   syncHashState(c);
 }
 
@@ -223,8 +255,43 @@ function setMode(c, mode) {
     c.els.btnModeOutage.classList.toggle('btn-mini-primary', mode === 'outage');
   }
   refreshFeatureStyles(c);
+  updateHeader(c);
   updateRanking(c);
+  renderInsights(c);
   syncHashState(c);
+}
+
+function setColorMode(c, mode) {
+  const next = (mode === 'group' || mode === 'outage' || mode === 'variable') ? mode : 'group';
+  if (next === 'variable' && (!c.state.csvPaint.loaded || !c.state.csvPaint.activeColumn)) {
+    setStatus(c, 'Carga una tabla con variables numéricas antes de usar color por variable.', 'warn');
+    return;
+  }
+
+  c.state.colorMode = next;
+  c.els.btnColorGroup.classList.toggle('btn-mini-primary', next === 'group');
+  c.els.btnColorOutage.classList.toggle('btn-mini-primary', next === 'outage');
+  c.els.btnColorVariable.classList.toggle('btn-mini-primary', next === 'variable');
+
+  if (next === 'group') {
+    c.els.colorModeHelp.textContent = 'El mapa usa colores por grupo.';
+  } else if (next === 'outage') {
+    c.els.colorModeHelp.textContent = 'El mapa usa colores por intensidad de cortes acumulados.';
+  } else {
+    c.els.colorModeHelp.textContent = 'El mapa usa colores por la variable tabular activa: ' + c.state.csvPaint.activeColumn + '.';
+  }
+
+  refreshFeatureStyles(c);
+  updateRanking(c);
+  renderInsights(c);
+  syncHashState(c);
+}
+
+function toggleAnalysisRail(c, open) {
+  const rail = document.querySelector('.analysis-rail');
+  if (!rail) return;
+  rail.classList.toggle('open', open);
+  if (c.els.btnRail) c.els.btnRail.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function createMap() {
@@ -266,7 +333,10 @@ function createMap() {
 
   map.on('moveend', debounce(function () { syncHashState(ctx); }, 320));
   map.on('zoomend', debounce(function () { syncHashState(ctx); }, 320));
-  map.on('click', function () { closeInfoPanel(ctx); });
+  map.on('click', function () {
+    hideAllFeatureTooltips(ctx);
+    closeInfoPanel(ctx);
+  });
 
   return map;
 }
@@ -292,10 +362,23 @@ async function onCsvFileChange(event) {
   try {
     setStatus(ctx, 'Procesando CSV de polígonos...', 'warn');
     await loadCsvPolygonData(ctx, file);
+    renderInsights(ctx);
     setStatus(ctx, 'CSV cargado: ' + ctx.state.csvPaint.rows.size + ' polígonos enlazados.', 'ok');
   } catch (err) {
     setStatus(ctx, 'Error: ' + (err && err.message ? err.message : 'No se pudo cargar el CSV.'), 'err');
   }
+}
+
+function getPeakMinute(c) {
+  const buckets = c.state.analysis && c.state.analysis.buckets ? c.state.analysis.buckets : [];
+  let bestIndex = 0;
+  for (let i = 1; i < buckets.length; i += 1) {
+    if (buckets[i] > buckets[bestIndex]) bestIndex = i;
+  }
+  const minute = bestIndex * 15;
+  const hh = String(Math.floor(minute / 60)).padStart(2, '0');
+  const mm = String(minute % 60).padStart(2, '0');
+  return hh + ':' + mm;
 }
 
 function getDatasetIdFromQuery() {

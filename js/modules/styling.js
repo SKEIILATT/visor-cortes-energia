@@ -7,18 +7,19 @@ export function isMetaActiveAt(meta, minute) {
     const end = slots[i][1];
     if (end > start) {
       if (minute >= start && minute < end) return true;
-    } else {
-      if (minute >= start || minute < end) return true;
+    } else if (minute >= start || minute < end) {
+      return true;
     }
   }
   return false;
 }
 
 export function getColorForMeta(ctx, meta) {
-  if (ctx.state.csvPaint.loaded && ctx.state.csvPaint.activeColumn) {
-    return getCsvPaintColor(ctx, meta);
+  if (ctx.state.colorMode === 'variable') {
+    if (ctx.state.csvPaint.loaded && ctx.state.csvPaint.activeColumn) return getCsvPaintColor(ctx, meta);
+    return '#c8ced7';
   }
-  if (ctx.state.mode === 'outage' && ctx.state.analysis.outageAvailable) {
+  if (ctx.state.colorMode === 'outage') {
     if (!meta.hasOutage) return '#a8b0bc';
     return outageHeatColor(meta.totalOutageMin);
   }
@@ -31,9 +32,7 @@ function getCsvPaintColor(ctx, meta) {
   const colInfo = findCsvColumn(ctx, col);
   if (!colInfo) return '#a8b0bc';
   const row = ctx.state.csvPaint.rows.get(meta.id);
-  if (!row || row[col] === undefined || row[col] === null || String(row[col]).trim() === '') {
-    return '#c8ced7';
-  }
+  if (!row || row[col] === undefined || row[col] === null || String(row[col]).trim() === '') return '#c8ced7';
   const val = toNumber(row[col]);
   if (!Number.isFinite(val)) return '#c8ced7';
   const lo = ctx.state.csvPaint.manualMin !== null ? ctx.state.csvPaint.manualMin : colInfo.min;
@@ -54,27 +53,27 @@ export function outageHeatColor(totalMin) {
   const ratio = Math.max(0, Math.min(1, totalMin / 600));
   if (ratio < 0.5) {
     const t = ratio * 2;
-    const r = Math.round(58 + (245 - 58) * t);
-    const g = Math.round(175 + (158 - 175) * t);
-    const b = Math.round(129 + (11 - 129) * t);
+    const r = Math.round(69 + (223 - 69) * t);
+    const g = Math.round(123 + (173 - 123) * t);
+    const b = Math.round(157 + (88 - 157) * t);
     return 'rgb(' + r + ',' + g + ',' + b + ')';
   }
   const t = (ratio - 0.5) * 2;
-  const r = Math.round(245 + (192 - 245) * t);
-  const g = Math.round(158 + (57 - 158) * t);
-  const b = Math.round(11 + (43 - 11) * t);
+  const r = Math.round(223 + (178 - 223) * t);
+  const g = Math.round(173 + (34 - 173) * t);
+  const b = Math.round(88 + (34 - 88) * t);
   return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
 export const CSV_PALETTES = {
-  heat:     { label: 'Calor',    stops: [[41,98,255],[0,200,200],[16,185,129],[245,200,11],[249,115,22],[192,38,61]] },
-  semaforo: { label: 'Semáforo', stops: [[34,197,94],[132,204,22],[250,204,21],[251,146,60],[239,68,68],[185,28,28]] },
-  frio:     { label: 'Frío',     stops: [[220,235,255],[147,197,253],[59,130,246],[29,78,216],[30,27,153],[15,10,90]] },
-  magma:    { label: 'Magma',    stops: [[10,10,10],[70,10,100],[160,30,100],[250,120,60],[255,200,100],[255,255,180]] },
+  heat:    { label: 'Gradiente', stops: [[16,64,132],[34,94,168],[42,157,143],[233,196,106],[244,162,97],[214,40,40]] },
+  cividis: { label: 'Cividis',   stops: [[0,34,77],[43,68,117],[87,107,128],[140,148,112],[192,183,78],[255,233,69]] },
+  frio:    { label: 'Azules',    stops: [[232,241,255],[177,211,255],[106,162,255],[54,102,201],[33,63,138],[15,27,78]] },
+  magma:   { label: 'Magma',     stops: [[15,7,35],[75,18,93],[145,34,114],[211,79,98],[251,173,80],[252,253,191]] },
 };
 
 export function csvHeatColor(ratio, palette) {
-  const key = (palette && CSV_PALETTES[palette]) ? palette : 'heat';
+  const key = palette && CSV_PALETTES[palette] ? palette : 'heat';
   const stops = CSV_PALETTES[key].stops;
   const n = stops.length - 1;
   const t = Math.max(0, Math.min(1, ratio)) * n;
@@ -87,50 +86,58 @@ export function csvHeatColor(ratio, palette) {
   return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
-export function getPathStyle(ctx, meta, hover) {
+export function getPathStyle(ctx, meta, hover, selected) {
   const isLine = /LineString/i.test(meta.geometryType || '');
   const activeNow = ctx.state.minute >= 0 && isMetaActiveAt(meta, ctx.state.minute);
 
   let color = getColorForMeta(ctx, meta);
   let fill = color;
-  let weight = isLine ? 3 : 1.2;
-  let fillOpacity = isLine ? 0 : 0.42;
-  let opacity = 0.95;
+  let weight = isLine ? 3 : 1.15;
+  let fillOpacity = isLine ? 0 : 0.45;
+  let opacity = 0.94;
 
-  if (ctx.state.minute >= 0 && ctx.state.analysis.outageAvailable) {
+  if (ctx.state.colorMode === 'outage' && ctx.state.minute >= 0 && ctx.state.analysis.outageAvailable) {
     if (activeNow) {
-      color = '#c0392b';
-      fill = '#c0392b';
-      weight = isLine ? 4 : 2;
-      fillOpacity = isLine ? 0 : 0.62;
+      color = '#b22222';
+      fill = '#d94841';
+      weight = isLine ? 4 : 2.2;
+      fillOpacity = isLine ? 0 : 0.7;
     } else if (meta.hasOutage) {
       color = '#8f9aa8';
-      fill = '#8f9aa8';
+      fill = '#9aa6b2';
       weight = isLine ? 2 : 1;
-      fillOpacity = isLine ? 0 : 0.1;
-      opacity = 0.6;
+      fillOpacity = isLine ? 0 : 0.12;
+      opacity = 0.52;
     }
   }
 
   if (hover) {
     weight += 1;
-    fillOpacity = Math.min(0.8, fillOpacity + 0.15);
+    fillOpacity = Math.min(0.82, fillOpacity + 0.14);
+  }
+
+  if (selected) {
+    color = '#0f172a';
+    fill = color;
+    weight += 2;
+    fillOpacity = Math.min(0.88, fillOpacity + 0.14);
+    opacity = 1;
   }
 
   return { color: color, weight: weight, opacity: opacity, fillColor: fill, fillOpacity: fillOpacity };
 }
 
-export function getPointStyle(ctx, meta, hover) {
+export function getPointStyle(ctx, meta, hover, selected) {
   const activeNow = ctx.state.minute >= 0 && isMetaActiveAt(meta, ctx.state.minute);
   let color = getColorForMeta(ctx, meta);
   let fill = color;
   let radius = hover ? 7 : 5;
-  let fillOpacity = 0.8;
+  let fillOpacity = 0.82;
 
-  if (ctx.state.minute >= 0 && ctx.state.analysis.outageAvailable) {
+  if (ctx.state.colorMode === 'outage' && ctx.state.minute >= 0 && ctx.state.analysis.outageAvailable) {
     if (activeNow) {
-      color = '#c0392b';
-      fill = '#c0392b';
+      color = '#b22222';
+      fill = '#d94841';
       radius = hover ? 8 : 6;
     } else if (meta.hasOutage) {
       color = '#8f9aa8';
@@ -139,13 +146,20 @@ export function getPointStyle(ctx, meta, hover) {
     }
   }
 
-  return { color: color, fillColor: fill, weight: 1, radius: radius, fillOpacity: fillOpacity, opacity: 0.95 };
+  if (selected) {
+    color = '#0f172a';
+    fill = '#0f172a';
+    radius += 2;
+    fillOpacity = 1;
+  }
+
+  return { color: color, fillColor: fill, weight: 1, radius: radius, fillOpacity: fillOpacity, opacity: 0.96 };
 }
 
 export function applyStyleToFeature(ctx, feat) {
   if (!feat || !feat.layer || typeof feat.layer.eachLayer !== 'function') return;
-  const pathStyle = getPathStyle(ctx, feat.meta, feat.hovered);
-  const pointStyle = getPointStyle(ctx, feat.meta, feat.hovered);
+  const pathStyle = getPathStyle(ctx, feat.meta, feat.hovered, feat.selected);
+  const pointStyle = getPointStyle(ctx, feat.meta, feat.hovered, feat.selected);
 
   feat.layer.eachLayer(function (sub) {
     if (sub instanceof L.CircleMarker) {
