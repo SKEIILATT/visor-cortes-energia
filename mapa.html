@@ -1,102 +1,108 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Visor GeoJSON - Mapa</title>
+  <title>GeoSpatial Research Viewer</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+
+  <!-- Leaflet-Geoman (edición de polígonos) -->
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.11.2/dist/leaflet-geoman.css">
+
   <link rel="stylesheet" href="styles/mapa.css">
 
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Leaflet-Geoman -->
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.11.2/dist/leaflet-geoman.min.js"></script>
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell" data-mode="view">
+
+    <!-- ══ Topbar ══════════════════════════════════════════════════════ -->
     <header class="topbar">
+
       <div class="title-box">
         <p class="title-kicker">GeoSpatial Research Viewer</p>
         <h1 id="hdr-title">Cargando dataset...</h1>
         <p id="hdr-sub">Preparando visualización</p>
       </div>
 
+      <!-- Selector de modo -->
+      <div class="mode-toggle" role="group" aria-label="Modo de trabajo">
+        <button id="btn-mode-view" class="mode-btn active" type="button">Visualización</button>
+        <button id="btn-mode-edit" class="mode-btn"        type="button">Herramientas</button>
+      </div>
+
       <div class="top-stats" aria-live="polite">
         <div class="stat">
-          <span class="stat-v" id="s-features">-</span>
-          <span class="stat-k">features</span>
+          <span class="stat-v" id="s-features">—</span>
+          <span class="stat-k">zonas</span>
         </div>
+        <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-v" id="s-groups">-</span>
+          <span class="stat-v" id="s-groups">—</span>
           <span class="stat-k">grupos</span>
         </div>
+        <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-v" id="s-affected">-</span>
+          <span class="stat-v" id="s-affected">—</span>
           <span class="stat-k">afectadas</span>
         </div>
+        <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-v" id="s-peak">-</span>
+          <span class="stat-v" id="s-peak">—</span>
           <span class="stat-k">hora pico</span>
         </div>
       </div>
 
       <div class="top-actions">
-        <button id="btn-theme" class="btn-ghost" type="button">Tema</button>
-        <button id="btn-fit" class="btn-ghost" type="button">Encuadrar</button>
-        <button id="btn-export-csv-all" class="btn-ghost" type="button">CSV completo</button>
-        <button id="btn-export-csv-visible" class="btn-ghost" type="button">CSV visible</button>
-        <button id="btn-back" class="btn-ghost" type="button">Nuevo archivo</button>
+        <button id="btn-theme" class="btn-ghost" type="button">Tema oscuro</button>
+        <button id="btn-fit"   class="btn-ghost" type="button">Encuadrar</button>
+        <button id="btn-back"  class="btn-ghost" type="button">← Volver</button>
       </div>
     </header>
 
+    <!-- ══ Layout ══════════════════════════════════════════════════════ -->
     <div class="layout">
-      <aside class="sidebar" id="sidebar">
+
+      <!-- ── Sidebar VISUALIZACIÓN ──────────────────────────────────── -->
+      <aside class="sidebar view-sidebar" id="sidebar">
+
         <section class="panel">
           <h2 class="panel-title">Exploración</h2>
-          <p class="panel-help">Filtra grupos, cambia cómo se colorea el mapa y activa una vista integrada cuando quieras simplificar la geometría.</p>
-          <input id="group-search" type="search" placeholder="Buscar grupo" autocomplete="off">
+          <input id="group-search" type="search" placeholder="Buscar grupo…" autocomplete="off" style="margin-top:8px">
           <div class="btn-row">
-            <button id="btn-all" class="btn-mini" type="button">Todos</button>
-            <button id="btn-none" class="btn-mini" type="button">Ninguno</button>
-            <button id="btn-invert" class="btn-mini" type="button">Invertir</button>
+            <button id="btn-all"           class="btn-mini" type="button">Todos</button>
+            <button id="btn-none"          class="btn-mini" type="button">Ninguno</button>
+            <button id="btn-invert"        class="btn-mini" type="button">Invertir</button>
             <button id="btn-affected-only" class="btn-mini" type="button">Solo afectadas</button>
           </div>
           <div class="btn-row">
-            <button id="btn-mode-group" class="btn-mini btn-mini-primary" type="button">Por grupo</button>
-            <button id="btn-mode-outage" class="btn-mini" type="button">Por cortes</button>
-            <button id="btn-geom-toggle" class="btn-mini" type="button">Vista integrada</button>
+            <button id="btn-mode-group"  class="btn-mini btn-mini-primary" type="button">Por grupo</button>
+            <button id="btn-mode-outage" class="btn-mini"                  type="button">Por cortes</button>
           </div>
           <div class="btn-row color-mode-row">
-            <button id="btn-color-group" class="btn-mini btn-mini-primary" type="button">Color: grupo</button>
-            <button id="btn-color-outage" class="btn-mini" type="button">Color: cortes</button>
-            <button id="btn-color-variable" class="btn-mini" type="button">Color: variable</button>
+            <button id="btn-color-group"    class="btn-mini btn-mini-primary" type="button">Color: grupo</button>
+            <button id="btn-color-outage"   class="btn-mini"                  type="button">Color: cortes</button>
+            <button id="btn-color-variable" class="btn-mini"                  type="button">Color: variable</button>
           </div>
-          <p id="color-mode-help" class="muted">El mapa usa colores por grupo.</p>
-        </section>
-
-        <section class="panel panel-advanced collapsed">
-          <div class="panel-row panel-row-toggle">
-            <h2 class="panel-title">Análisis avanzado</h2>
-            <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
-          </div>
-          <div class="panel-body">
-            <p class="panel-help">Herramientas adicionales para exportar, imprimir y revisar geometrías derivadas.</p>
-            <div class="btn-row">
-              <button id="btn-export-fused" class="btn-mini" type="button" hidden>Exportar fusionado</button>
-              <button id="btn-resolve-overlaps" class="btn-mini" type="button" hidden>Resolver solapamientos</button>
-              <button id="btn-export-resolved" class="btn-mini" type="button" hidden>Exportar sin solapamientos</button>
-              <button id="btn-print" class="btn-mini" type="button">Imprimir</button>
-            </div>
-          </div>
+          <p id="color-mode-help" class="muted">Color por grupo.</p>
         </section>
 
         <section class="panel panel-inc collapsed">
@@ -105,12 +111,11 @@
             <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
           </div>
           <div class="panel-body">
-            <p class="panel-help">Carga puntos externos en CSV o Excel para mostrar incidencias sobre el mapa.</p>
             <div class="btn-row">
-              <button id="btn-inc-load" class="btn-mini btn-mini-primary" type="button">Cargar CSV/Excel</button>
-              <button id="btn-inc-toggle" class="btn-mini" type="button" disabled>Ocultar</button>
+              <button id="btn-inc-load"    class="btn-mini btn-mini-primary" type="button">Cargar CSV/Excel</button>
+              <button id="btn-inc-toggle"  class="btn-mini" type="button" disabled>Ocultar</button>
               <button id="btn-inc-cluster" class="btn-mini" type="button" disabled>Cluster ON</button>
-              <button id="btn-inc-clear" class="btn-mini" type="button" disabled>Quitar</button>
+              <button id="btn-inc-clear"   class="btn-mini" type="button" disabled>Quitar</button>
             </div>
             <p id="inc-meta" class="muted">Sin incidencias cargadas</p>
             <input id="inc-file-input" type="file" accept=".csv,.xlsx,.xls" hidden>
@@ -123,9 +128,8 @@
             <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
           </div>
           <div class="panel-body">
-            <p class="panel-help">Sirve para pintar los polígonos con valores de una tabla. Solo necesita una columna identificadora y al menos una columna numérica.</p>
             <div class="btn-row">
-              <button id="btn-csv-load" class="btn-mini btn-mini-primary" type="button">Cargar tabla</button>
+              <button id="btn-csv-load"  class="btn-mini btn-mini-primary" type="button">Cargar tabla</button>
               <button id="btn-csv-clear" class="btn-mini" type="button" disabled>Quitar</button>
             </div>
             <p id="csv-meta" class="muted">Sin datos cargados</p>
@@ -138,89 +142,112 @@
         <section class="panel grow">
           <div class="panel-row">
             <h2 id="groups-title" class="panel-title">Grupos</h2>
-            <span id="groups-visible" class="muted">0/0</span>
+            <span id="groups-visible" class="muted" style="margin:0">0/0</span>
           </div>
-          <p class="panel-help">Activa o desactiva grupos para quedarte solo con las zonas que quieras analizar.</p>
           <div id="groups-list" class="groups-list"></div>
         </section>
-      </aside>
+      </aside><!-- /view-sidebar -->
 
+      <!-- ── Sidebar HERRAMIENTAS ───────────────────────────────────── -->
+      <aside class="sidebar tools-sidebar" id="tools-sidebar">
+
+        <!-- Edición de polígonos -->
+        <section class="panel">
+          <h2 class="panel-title">Edición de polígonos</h2>
+
+          <div class="tool-group-label">Vértices y forma</div>
+          <div class="btn-row">
+            <button id="btn-edit-vertices" class="btn-mini" type="button" title="Arrastra vértices para moldear">Editar vértices</button>
+            <button id="btn-edit-drag"     class="btn-mini" type="button" title="Mueve el polígono completo">Mover</button>
+          </div>
+          <div class="btn-row">
+            <button id="btn-edit-cut"    class="btn-mini" type="button" title="Dibuja una forma para recortar">Cortar</button>
+            <button id="btn-edit-delete" class="btn-mini" type="button" title="Elimina un polígono del mapa">Eliminar</button>
+          </div>
+
+          <div class="tool-group-label" style="margin-top:10px">Dibujar nuevos elementos</div>
+          <div class="btn-row">
+            <button id="btn-draw-Polygon" class="btn-mini" type="button">Dibujar polígono</button>
+            <button id="btn-draw-Line"    class="btn-mini" type="button">Dibujar línea</button>
+          </div>
+
+          <div class="btn-row" style="margin-top:6px">
+            <button id="btn-finish-editing" class="btn-mini" type="button" style="flex:1">Finalizar edición</button>
+          </div>
+
+          <p id="editor-status" class="muted editor-status">Sin cambios.</p>
+        </section>
+
+        <!-- Exportar GeoJSON -->
+        <section class="panel">
+          <h2 class="panel-title">Exportar GeoJSON</h2>
+          <div class="btn-row">
+            <button id="btn-export-original-geojson" class="btn-mini" type="button">Original</button>
+            <button id="btn-export-modified-geojson" class="btn-mini btn-mini-primary" type="button">Con ediciones</button>
+          </div>
+        </section>
+
+        <!-- Solapamientos -->
+        <section class="panel panel-advanced collapsed">
+          <div class="panel-row panel-row-toggle">
+            <h2 class="panel-title">Solapamientos</h2>
+            <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
+          </div>
+          <div class="panel-body">
+            <div class="btn-row">
+              <button id="btn-resolve-overlaps" class="btn-mini btn-mini-primary" type="button">Detectar y resolver</button>
+              <button id="btn-export-resolved"  class="btn-mini" type="button" hidden>Exportar resuelto</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Vista fusionada -->
+        <section class="panel collapsed">
+          <div class="panel-row panel-row-toggle">
+            <h2 class="panel-title">Geometría fusionada</h2>
+            <button class="btn-panel-toggle" type="button" aria-label="Expandir">▾</button>
+          </div>
+          <div class="panel-body">
+            <div class="btn-row">
+              <button id="btn-geom-toggle"  class="btn-mini" type="button">Activar fusionado</button>
+              <button id="btn-export-fused" class="btn-mini" type="button" hidden>Exportar fusionado</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Exportar datos tabulares -->
+        <section class="panel">
+          <h2 class="panel-title">Exportar datos</h2>
+          <div class="btn-row">
+            <button id="btn-export-csv-all"     class="btn-mini" type="button">CSV completo</button>
+            <button id="btn-export-csv-visible" class="btn-mini" type="button">CSV filtrado</button>
+          </div>
+          <div class="btn-row">
+            <button id="btn-print" class="btn-mini" type="button">Imprimir mapa</button>
+          </div>
+        </section>
+
+      </aside><!-- /tools-sidebar -->
+
+      <!-- ── Map stage ────────────────────────────────────────────────── -->
       <main class="map-stage">
         <div id="map"></div>
 
-        <button id="btn-sidebar" class="floating-btn sidebar-btn" type="button">Panel</button>
-        <button id="btn-rail" class="floating-btn rail-btn" type="button" aria-expanded="false">Análisis</button>
+        <button id="btn-sidebar" class="floating-btn sidebar-btn" type="button">☰ Panel</button>
 
-        <aside class="analysis-rail" aria-label="Panel analítico">
-          <div class="analysis-rail-head">
-            <h2 class="panel-title">Panel de análisis</h2>
-            <button id="btn-rail-close" class="btn-mini" type="button">Ocultar</button>
+        <!-- Info panel (detalle del polígono — solo en modo visualización) -->
+        <section id="info" class="info" hidden aria-label="Detalle del polígono">
+          <div class="info-header">
+            <h2 id="info-title" class="panel-title info-title-text">Detalle</h2>
+            <button id="btn-info-close" class="btn-mini info-close-btn" type="button" aria-label="Cerrar">×</button>
           </div>
-          <section id="ranking" class="ranking">
-            <div class="panel-row">
-              <h2 id="rank-title" class="panel-title">Top zonas por cortes</h2>
-              <span class="muted" id="rank-sub">por horas</span>
-            </div>
-            <p class="panel-help">Muestra primero los grupos más relevantes según el estado actual del mapa.</p>
-            <div id="rank-list"></div>
-          </section>
-
-          <section id="csv-panel" class="csv-panel" hidden>
-            <div class="panel-row">
-              <h2 class="panel-title" id="csv-panel-title">CSV Polígonos</h2>
-              <span class="muted" id="csv-panel-sub"></span>
-            </div>
-            <p class="panel-help">Muestra la leyenda y el ranking de la variable con la que se están pintando los polígonos.</p>
-            <div id="csv-legend" class="csv-legend"></div>
-            <div id="csv-rank" class="rank-list"></div>
-          </section>
-
-          <section id="info" class="info" hidden>
-            <div class="panel-row">
-              <h2 id="info-title" class="panel-title">Detalle</h2>
-              <button id="btn-info-close" class="btn-mini" type="button">Cerrar</button>
-            </div>
-            <p class="panel-help">Muestra el detalle completo del polígono seleccionado.</p>
-            <div id="info-content"></div>
-          </section>
-        </aside>
-
-        <section id="timeline" class="timeline">
-          <div class="timeline-row">
-            <div>
-              <p class="timeline-title">Motor temporal</p>
-              <p class="panel-help timeline-help">Desliza la barra para ver qué zonas cambian según la hora.</p>
-              <p id="timeline-badge" class="timeline-badge">sin filtro horario</p>
-            </div>
-            <div class="timeline-header-right">
-              <div class="time-box" id="timeline-time">--:--</div>
-              <button id="btn-tl-toggle" class="btn-mini" type="button" title="Colapsar timeline">−</button>
-            </div>
-          </div>
-
-          <div class="timeline-story">
-            <div id="timeline-peaks" class="timeline-peaks"></div>
-            <div class="timeline-scale" id="timeline-scale"></div>
-          </div>
-
-          <div class="timeline-row controls">
-            <button id="btn-play" class="btn-mini" type="button">Reproducir</button>
-            <input id="timeline-slider" type="range" min="0" max="1440" step="15" value="0">
-            <button id="btn-spd-1" class="btn-mini btn-mini-primary" type="button">1x</button>
-            <button id="btn-spd-4" class="btn-mini" type="button">4x</button>
-            <button id="btn-spd-8" class="btn-mini" type="button">8x</button>
-            <button id="btn-time-clear" class="btn-mini" type="button">Quitar filtro</button>
-          </div>
-
-          <div class="track-wrap">
-            <svg id="timeline-track" viewBox="0 0 100 10" preserveAspectRatio="none"></svg>
-          </div>
-          <p id="timeline-context" class="timeline-context">Selecciona un momento para explorar intensidad, simultaneidad y zonas afectadas.</p>
+          <div id="info-content"></div>
         </section>
 
+        <!-- Compare panel (modo herramientas — solapamientos) -->
         <section id="compare-panel" class="compare-panel" hidden>
           <div class="panel-row">
-            <h2 class="panel-title">Comparación de solapamientos</h2>
+            <h2 class="panel-title">Comparación</h2>
           </div>
           <div class="compare-legend">
             <div class="compare-legend-item">
@@ -233,16 +260,64 @@
             </div>
           </div>
           <div class="compare-mode-row">
-            <button id="btn-cmp-before" class="btn-mini" type="button">Solo original</button>
-            <button id="btn-cmp-both" class="btn-mini btn-mini-primary" type="button">Comparar</button>
-            <button id="btn-cmp-after" class="btn-mini" type="button">Solo resuelto</button>
+            <button id="btn-cmp-before" class="btn-mini"                  type="button">Original</button>
+            <button id="btn-cmp-both"   class="btn-mini btn-mini-primary" type="button">Comparar</button>
+            <button id="btn-cmp-after"  class="btn-mini"                  type="button">Resuelto</button>
           </div>
         </section>
 
+        <!-- Timeline (solo en modo visualización) -->
+        <section id="timeline" class="timeline">
+          <div class="timeline-row">
+            <div>
+              <p class="timeline-title">Motor temporal</p>
+              <p id="timeline-badge" class="timeline-badge">sin filtro horario</p>
+            </div>
+            <div class="timeline-header-right">
+              <div class="time-box" id="timeline-time">--:--</div>
+              <button id="btn-tl-toggle" class="btn-mini" type="button" title="Colapsar timeline">−</button>
+            </div>
+          </div>
+          <div class="timeline-story">
+            <div id="timeline-peaks" class="timeline-peaks"></div>
+            <div class="timeline-scale" id="timeline-scale"></div>
+          </div>
+          <div class="timeline-row controls">
+            <button id="btn-play"       class="btn-mini"             type="button">Reproducir</button>
+            <input  id="timeline-slider" type="range" min="0" max="1440" step="15" value="0">
+            <button id="btn-spd-1"      class="btn-mini btn-mini-primary" type="button">1×</button>
+            <button id="btn-spd-4"      class="btn-mini"             type="button">4×</button>
+            <button id="btn-spd-8"      class="btn-mini"             type="button">8×</button>
+            <button id="btn-time-clear" class="btn-mini"             type="button">Quitar filtro</button>
+          </div>
+          <div class="track-wrap">
+            <svg id="timeline-track" viewBox="0 0 100 10" preserveAspectRatio="none"></svg>
+          </div>
+          <p id="timeline-context" class="timeline-context">Selecciona un momento para explorar intensidad, simultaneidad y zonas afectadas.</p>
+        </section>
+
         <div id="status-pill" class="status-pill">Inicializando mapa...</div>
-      </main>
-    </div>
-  </div>
+
+        <!-- Stubs requeridos por JS (no visibles) -->
+        <span id="btn-rail"        hidden></span>
+        <span id="btn-rail-close"  hidden></span>
+        <span id="rank-title"      hidden></span>
+        <span id="rank-sub"        hidden></span>
+        <span id="rank-list"       hidden></span>
+        <span id="ranking"         hidden></span>
+        <span id="csv-panel"       hidden></span>
+        <span id="csv-panel-title" hidden></span>
+        <span id="csv-panel-sub"   hidden></span>
+        <span id="csv-legend"      hidden></span>
+        <span id="csv-rank"        hidden></span>
+        <span id="insights"         hidden></span>
+        <span id="insights-caption" hidden></span>
+        <span id="insights-summary" hidden></span>
+        <span id="insights-cards"   hidden></span>
+      </main><!-- /map-stage -->
+
+    </div><!-- /layout -->
+  </div><!-- /app-shell -->
 
   <script src="js/data-store.js"></script>
   <script type="module" src="js/modules/app.js"></script>

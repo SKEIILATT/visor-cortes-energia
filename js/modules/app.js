@@ -24,6 +24,12 @@ import { loadCsvPolygonData, clearCsvPaint } from './csv-paint.js';
 import { runOverlapResolver, setCompareMode, exportResolvedGeoJSON } from './overlap.js';
 import { exportFeatureTableCsv, exportFusedGeoJSON } from './export.js';
 import { shouldFeatureBeVisible } from './layers.js';
+import {
+  initEditor, buildLayerMap,
+  activateVertexEdit, activateDragMode, activateDeleteMode, activateCutMode,
+  startDraw, finishEditing, exitEditorMode,
+  exportOriginalGeoJSON, exportModifiedGeoJSON,
+} from './editor.js';
 
 const ctx = {
   state: createState(),
@@ -85,6 +91,7 @@ async function boot() {
   ctx.els.title.textContent = datasetName;
 
   ctx.state.map = createMap();
+  initEditor(ctx);
 
   setStatus(ctx, 'Analizando capas y propiedades...', 'warn');
   try {
@@ -96,6 +103,7 @@ async function boot() {
 
   prepareGroups(ctx);
   buildFeatureLayers(ctx);
+  buildLayerMap(ctx);
   buildTimelineTrack(ctx);
   applyPendingHashState(ctx);
 
@@ -129,6 +137,33 @@ async function boot() {
 }
 
 function bindUI() {
+  // ── Modo dual ───────────────────────────────────────────────────────
+  const btnModeView = document.getElementById('btn-mode-view');
+  const btnModeEdit = document.getElementById('btn-mode-edit');
+  if (btnModeView) btnModeView.addEventListener('click', function () { setAppMode('view'); });
+  if (btnModeEdit) btnModeEdit.addEventListener('click', function () { setAppMode('edit'); });
+
+  // ── Editor de polígonos ─────────────────────────────────────────────
+  const btnEditV = document.getElementById('btn-edit-vertices');
+  const btnEditD = document.getElementById('btn-edit-drag');
+  const btnEditC = document.getElementById('btn-edit-cut');
+  const btnEditX = document.getElementById('btn-edit-delete');
+  const btnDrawP = document.getElementById('btn-draw-Polygon');
+  const btnDrawL = document.getElementById('btn-draw-Line');
+  const btnFinish = document.getElementById('btn-finish-editing');
+  const btnExpOrig = document.getElementById('btn-export-original-geojson');
+  const btnExpMod  = document.getElementById('btn-export-modified-geojson');
+
+  if (btnEditV)  btnEditV.addEventListener('click',  function () { activateVertexEdit(ctx); });
+  if (btnEditD)  btnEditD.addEventListener('click',  function () { activateDragMode(ctx); });
+  if (btnEditC)  btnEditC.addEventListener('click',  function () { activateCutMode(ctx); });
+  if (btnEditX)  btnEditX.addEventListener('click',  function () { activateDeleteMode(ctx); });
+  if (btnDrawP)  btnDrawP.addEventListener('click',  function () { startDraw(ctx, 'Polygon'); });
+  if (btnDrawL)  btnDrawL.addEventListener('click',  function () { startDraw(ctx, 'Line'); });
+  if (btnFinish) btnFinish.addEventListener('click', function () { finishEditing(ctx); });
+  if (btnExpOrig) btnExpOrig.addEventListener('click', function () { exportOriginalGeoJSON(ctx); });
+  if (btnExpMod)  btnExpMod.addEventListener('click',  function () { exportModifiedGeoJSON(ctx); });
+
   ctx.els.btnTheme.addEventListener('click', function () { toggleTheme(ctx); });
   ctx.els.btnExportCsvAll.addEventListener('click', function () { exportFeatureTableCsv(ctx, false); });
   ctx.els.btnExportCsvVisible.addEventListener('click', function () { exportFeatureTableCsv(ctx, true); });
@@ -300,25 +335,29 @@ function createMap() {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   const layers = {
-    'Carto Dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© Carto',
+    'Positron': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }),
-    'Carto Light': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© Carto',
+    'Positron (sin etiquetas)': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }),
+    'Dark Matter': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
     }),
     'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }),
-    'Satélite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '© Esri',
+    'Satélite (Esri)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: '© Esri, Maxar, Earthstar Geographics',
       maxZoom: 18,
     }),
   };
 
-  layers['Carto Dark'].addTo(map);
+  layers['Positron'].addTo(map);
   L.control.layers(layers, {}, { position: 'topleft' }).addTo(map);
   L.control.scale({ imperial: false, position: 'bottomright' }).addTo(map);
 
@@ -379,6 +418,25 @@ function getPeakMinute(c) {
   const hh = String(Math.floor(minute / 60)).padStart(2, '0');
   const mm = String(minute % 60).padStart(2, '0');
   return hh + ':' + mm;
+}
+
+function setAppMode(mode) {
+  const shell = document.querySelector('.app-shell');
+  if (!shell) return;
+  shell.setAttribute('data-mode', mode);
+
+  const btnView = document.getElementById('btn-mode-view');
+  const btnEdit = document.getElementById('btn-mode-edit');
+  if (btnView) btnView.classList.toggle('active', mode === 'view');
+  if (btnEdit) btnEdit.classList.toggle('active', mode === 'edit');
+
+  if (mode === 'edit') {
+    // Al entrar en herramientas: cerrar info panel si estaba abierto
+    closeInfoPanel(ctx);
+  } else {
+    // Al salir de herramientas: desactivar todos los modos de Geoman
+    exitEditorMode(ctx);
+  }
 }
 
 function getDatasetIdFromQuery() {

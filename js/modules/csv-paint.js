@@ -307,6 +307,7 @@ function renderCsvOptions(ctx) {
 }
 
 export function renderCsvPanel(ctx) {
+  if (!ctx.els.csvPanel) return;
   if (!ctx.state.csvPaint.loaded) {
     ctx.els.csvPanel.hidden = true;
     return;
@@ -413,7 +414,7 @@ export function clearCsvPaint(ctx) {
   ctx.els.csvColumns.innerHTML = '';
   ctx.els.csvOptions.hidden = true;
   ctx.els.csvOptions.innerHTML = '';
-  ctx.els.csvPanel.hidden = true;
+  if (ctx.els.csvPanel) ctx.els.csvPanel.hidden = true;
 
   if (ctx._hooks.setColorMode && ctx.state.colorMode === 'variable') ctx._hooks.setColorMode(ctx, 'group');
   ctx._hooks.refreshFeatureStyles(ctx);
